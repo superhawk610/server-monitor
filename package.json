@@ -1,0 +1,36 @@
+{
+  "name": "server-monitor",
+  "version": "0.0.1",
+  "description": "A simple host/client application that allows a remote user to monitor various server statistics, such as uptime/downtime and running processes.",
+  "main": "client/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/superhawk610/server-monitor.git"
+  },
+  "keywords": [
+    "server",
+    "monitor",
+    "ucc"
+  ],
+  "author": "Aaron Ross",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/superhawk610/server-monitor/issues"
+  },
+  "homepage": "https://github.com/superhawk610/server-monitor#readme",
+  "dependencies": {
+    "clf-parser": "0.0.2",
+    "date-and-time": "^0.4.2",
+    "express": "^4.15.3",
+    "imperavi-kube": "^6.5.2",
+    "jquery": "^3.2.1",
+    "node-sass-middleware": "^0.11.0",
+    "pug": "^2.0.0-rc.2"
+  },
+  "devDependencies": {
+    "gulp": "^3.9.1"
+  }
+}

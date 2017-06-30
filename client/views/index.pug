@@ -1,0 +1,93 @@
+doctype html
+html
+  head
+    title Server Monitor
+    
+    meta(charset='utf-8')
+    meta(name='viewport', content='width=device-width, initial-scale=1')
+    
+    link(href='css/kube.min.css', rel='stylesheet')
+    link(href='css/master.css', rel='stylesheet')
+      
+  body
+    nav(class='navbar')
+      .logo
+        img(src='img/logo.gif')
+      ul
+        li
+          a Employee Portal
+        li
+          a Customer Portal
+        li
+          a Main Site
+    nav(class='sidebar')
+      ul
+        li
+          a Access Log
+        li
+          a Device Status
+        li
+          a Active Users
+    #page-wrapper
+      h4 Access Log (Unusual Sources)
+      table(data-component='collapse')
+        tr
+          th Method
+          th Request
+          th Client IP
+          th Access Date
+          th
+        - var prevIP = ''
+        - var expandStarted
+        - var count = -1
+        - var init = true
+        - for (var i=0; i < logs.length; i++)
+          - var log = logs[i]
+          if (log.remote_addr != prevIP)
+            - count++
+            - expandStarted = false
+            - prevIP = log.remote_addr
+            if (init)
+              - init = false
+            else
+              != '</ul></td></tr>'
+            tr
+              td
+                case log.http_method
+                  when 'GET'
+                    .gem-blue= log.http_method
+                  when 'POST'
+                    .gem-green= log.http_method
+                  when 'HEAD'
+                    .gem-red= log.http_method
+              td!= log.request.substring(0, 100) + '<br>' + log.request.substring(101, 200) + (log.request.substring(200).length ? '...' : '')
+              td(data-ip=log.remote_addr, class='ip-hover')= log.remote_addr
+              td!= log.formatted_time
+              td
+                a(href='#ip-details-' + count, class='collapse-toggle', style='display: block; height: 100%; width: 100%')
+                  span(class='caret down')
+                
+          else
+            if (!expandStarted)
+              - expandStarted = true
+              != '<tr style="background: #eee" class="collapse-box hide" id="ip-details-' + count + '"><td colspan=99><ul style="list-style: none">'
+            != '<li> [' + log.formatted_time.replace('<br>', ', ') + '] '
+            case log.http_method
+              when 'GET'
+                != '<span class="gem-text-blue">' + log.http_method + '</span> '
+              when 'POST'
+                != '<span class="gem-text-green">' + log.http_method + '</span> '
+              when 'HEAD'
+                != '<span class="gem-text-red">' + log.http_method + '</span> '
+            != log.request.substring(log.http_method.length + 1, 100) + (log.request.substring(100).length ? '...' : '') + '</li>'
+            
+    script(type='text/javascript', src='js/jquery.min.js')
+    script(type='text/javascript', src='js/kube.min.js')
+    script(type='text/javascript').
+      $(function() {
+        $('.ip-hover').hover(function() {
+          console.log('in');
+        }, function() {
+          console.log('out');
+        });
+      })

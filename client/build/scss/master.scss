@@ -1,0 +1,117 @@
+@import 'kube.scss';
+@import url('https://fonts.googleapis.com/css?family=Lato:300,400,700');
+
+/* Variables */
+$red: rgb(190, 66, 78);
+$green: rgb(112, 170, 102);
+$blue: rgb(69, 153, 184);
+
+/* General */
+
+* {
+  font-family: Lato, sans-serif !important;
+}
+
+/* Containers */
+
+nav a {
+  color: #000;
+  font-weight: 400;
+}
+
+nav a:hover,
+nav a:focus {
+  color: #666;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.navbar {
+  padding: 35px 50px;
+  height: 100px;
+  width: 100%;
+}
+
+.navbar .logo {
+  float: left;
+}
+
+.navbar .logo img {
+  width: 45px; height: 36px;
+  margin-left: 20px;
+}
+
+.navbar > ul {
+  list-style: none;
+  margin: 0; padding-left: 150px;
+}
+
+.navbar > ul > li {
+  float: left;
+  margin-right: 20px;
+}
+
+.sidebar {
+  width: 100px;
+  position: absolute;
+  left: 50px; top: 125px;
+}
+
+.sidebar > ul {
+  list-style: none;
+  margin: 0; padding: 0;
+}
+
+.sidebar > ul > li {
+
+}
+
+#page-wrapper {
+  margin: 0;
+  padding: 0 50px 25px 200px;
+}
+
+/* Gems */
+
+.gem {
+  text-align: center;
+  padding: 0.15em 0.5em;
+  color: #fff;
+  border-radius: 0.25em;
+}
+
+.gem-red {
+  @extend .gem;
+  background-color: $red;
+}
+
+.gem-green {
+  @extend .gem;
+  background-color: $green;
+}
+
+.gem-blue {
+  @extend .gem;
+  background-color: $blue;
+}
+
+/* Typography */
+
+.gem-text {
+  font-weight: 700;
+}
+
+.gem-text-red {
+  @extend .gem-text;
+  color: $red;
+}
+
+.gem-text-blue {
+  @extend .gem-text;
+  color: $blue;
+}
+
+.gem-text-green {
+  @extend .gem-text;
+  color: $green;
+}
