@@ -1,0 +1,28 @@
+nav(class='navbar')
+  .logo
+    img(src='img/logo.gif')
+  ul
+    li
+      a(href='http://www.unitedcatalystcorporation.com/portal/employees/') Employee Portal
+    li
+      a(href='http://www.unitedcatalystcorporation.com/portal/customers/') Customer Portal
+    li
+      a(href='http://www.unitedcatalystcorporation.com/') Main Site
+nav(class='sidebar')
+  ul
+    li
+      if route == 'access'
+        a(href='#', class='active') Access Log
+      else
+        - console.log(route)
+        a(href='/access') Access Log
+    li
+      if route == 'status'
+        a(href='#', class='active') Device Status
+      else
+        a(href='/status') Device Status
+    li
+      if route == 'users'
+        a(href='#', class='active') Active Users
+      else
+        a(href='/users') Active Users

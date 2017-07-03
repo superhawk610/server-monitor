@@ -14,4 +14,12 @@ gulp.task('jquery', () => {
              .pipe(gulp.dest('public/js'))
 })
 
-gulp.task('default', [ 'kube', 'jquery' ])
+gulp.task('tooltipster', () => {
+  gulp.src(['../node_modules/tooltipster/dist/css/tooltipster.bundle.min.css',
+            '../node_modules/tooltipster/dist/css/plugins/tooltipster/sideTip/**/*'])
+      .pipe(gulp.dest('public/css'))
+  gulp.src('../node_modules/tooltipster/dist/js/tooltipster.bundle.min.js')
+      .pipe(gulp.dest('public/js'))
+})
+
+gulp.task('default', [ 'kube', 'jquery', 'tooltipster' ])

@@ -1,35 +1,19 @@
 doctype html
 html
   head
-    title Server Monitor
-    
-    meta(charset='utf-8')
-    meta(name='viewport', content='width=device-width, initial-scale=1')
-    
-    link(href='css/kube.min.css', rel='stylesheet')
-    link(href='css/master.css', rel='stylesheet')
+    title Server Monitor - Access
+    include includes/head.pug
+    link(href='css/tooltipster.bundle.min.css', rel='stylesheet')
+    link(href='css/themes/tooltipster-sideTip-noir.min.css', rel='stylesheet')
       
   body
-    nav(class='navbar')
-      .logo
-        img(src='img/logo.gif')
-      ul
-        li
-          a Employee Portal
-        li
-          a Customer Portal
-        li
-          a Main Site
-    nav(class='sidebar')
-      ul
-        li
-          a Access Log
-        li
-          a Device Status
-        li
-          a Active Users
+    include includes/navigation.pug
     #page-wrapper
-      h4 Access Log (Unusual Sources)
+      .row
+        .col-6
+          h4 Access Log (Apache)
+        .col-6
+          a(class='button outline float-right', href='/log') View Raw
       table(data-component='collapse')
         tr
           th Method
@@ -62,6 +46,8 @@ html
                     .gem-red= log.http_method
               td!= log.request.substring(0, 100) + '<br>' + log.request.substring(101, 200) + (log.request.substring(200).length ? '...' : '')
               td(data-ip=log.remote_addr, class='ip-hover')= log.remote_addr
+                br
+                span
               td!= log.formatted_time
               td
                 a(href='#ip-details-' + count, class='collapse-toggle', style='display: block; height: 100%; width: 100%')
@@ -81,13 +67,30 @@ html
                 != '<span class="gem-text-red">' + log.http_method + '</span> '
             != log.request.substring(log.http_method.length + 1, 100) + (log.request.substring(100).length ? '...' : '') + '</li>'
             
-    script(type='text/javascript', src='js/jquery.min.js')
-    script(type='text/javascript', src='js/kube.min.js')
+    include includes/foot.pug
+    script(type='text/javascript', src='js/tooltipster.bundle.min.js')
     script(type='text/javascript').
       $(function() {
-        $('.ip-hover').hover(function() {
-          console.log('in');
-        }, function() {
-          console.log('out');
+        $('.ip-hover').each(function() {
+          var that = this;
+          $.get({
+            url: '/ip/' + $(this).attr('data-ip'),
+            success: function(res) {
+              $(that).find('span').text(res.result.city + ', ' + res.result.country)
+                                  .tooltipster({ theme: 'tooltipster-noir', contentAsHTML: true })
+                                  .tooltipster('open')
+                                  .tooltipster('content', ipDetails(res));
+            }
+          });
         });
-      })
+      });
+      
+      function ipDetails(ip) {
+        var result = ip.result;
+        result.first_encountered = ip.first_encountered;
+        var output = '';
+        for (var key in result) {
+          if (key.substring(0,1) != '_') output += key.replace('_', ' ') + ': ' + result[key] + '<br>';
+        }
+        return output.substring(0, output.length-4);
+      }

@@ -17,6 +17,7 @@ $blue: rgb(69, 153, 184);
 nav a {
   color: #000;
   font-weight: 400;
+  text-decoration: none;
 }
 
 nav a:hover,
@@ -24,6 +25,16 @@ nav a:focus {
   color: #666;
   text-decoration: underline;
   cursor: pointer;
+}
+
+nav a.active::before {
+  content: '> ';
+  margin-left: -12px;
+}
+
+nav a.active:hover,
+nav a.active:focus {
+  text-decoration: none;
 }
 
 .navbar {
