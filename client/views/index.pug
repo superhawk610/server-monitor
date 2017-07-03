@@ -44,6 +44,8 @@ html
                     .gem-green= log.http_method
                   when 'HEAD'
                     .gem-red= log.http_method
+                  when '???'
+                    .gem-red= log.http_method
               td!= log.request.substring(0, 100) + '<br>' + log.request.substring(101, 200) + (log.request.substring(200).length ? '...' : '')
               td(data-ip=log.remote_addr, class='ip-hover')= log.remote_addr
                 br
