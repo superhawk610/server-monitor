@@ -1,0 +1,48 @@
+if (logs.length)
+  - var prevIP = ''
+  - var expandStarted
+  - var count = offset
+  - var init = true
+  - for (var i=0; i < logs.length; i++)
+    - var log = logs[i]
+    if (log.remote_addr != prevIP)
+      - count++
+      - expandStarted = false
+      - prevIP = log.remote_addr
+      if (init)
+        - init = false
+      else
+        != '</ul></td></tr>'
+      tr(class='collapse-toggle')
+        td
+          case log.http_method
+            when 'GET'
+              .gem-blue= log.http_method
+            when 'POST'
+              .gem-green= log.http_method
+            when 'HEAD'
+              .gem-red= log.http_method
+            when '???'
+              .gem-red= log.http_method
+        td!= log.request.substring(0, 100) + '<br>' + log.request.substring(101, 200) + (log.request.substring(200).length ? '...' : '')
+        td(data-ip=log.remote_addr, class='ip-hover')= log.remote_addr
+          br
+          span
+        td!= log.formatted_time
+        td
+          span(class='caret down')
+        
+          
+    else
+      if (!expandStarted)
+        - expandStarted = true
+        != '<tr style="background: #eee; display: none" class="collapse-box"><td colspan=99><ul style="list-style: none">'
+      != '<li> [' + log.formatted_time.replace('<br>', ', ') + '] '
+      case log.http_method
+        when 'GET'
+          != '<span class="gem-text-blue">' + log.http_method + '</span> '
+        when 'POST'
+          != '<span class="gem-text-green">' + log.http_method + '</span> '
+        when 'HEAD'
+          != '<span class="gem-text-red">' + log.http_method + '</span> '
+      != log.request.substring(log.http_method.length + 1, 100) + (log.request.substring(100).length ? '...' : '') + '</li>'

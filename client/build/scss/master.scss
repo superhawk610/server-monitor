@@ -8,11 +8,29 @@ $blue: rgb(69, 153, 184);
 
 /* General */
 
-* {
-  font-family: Lato, sans-serif !important;
+html, body {
+  font-family: Lato, sans-serif;
+}
+
+table.clickable tr {
+  cursor: pointer;
+}
+
+table.clickable tr.collapse-box {
+  cursor: default;
+  -moz-box-shadow:    inset 0 0 20px -10px #000000;
+  -webkit-box-shadow: inset 0 0 20px -10px #000000;
+  box-shadow:         inset 0 0 20px -10px #000000;
 }
 
 /* Containers */
+
+.message {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  box-shadow: 0 0 20px #000;
+  margin: 0;
+}
 
 nav a {
   color: #000;
@@ -28,8 +46,10 @@ nav a:focus {
 }
 
 nav a.active::before {
-  content: '> ';
-  margin-left: -12px;
+  content: '\25cf';
+  color: $blue;
+  margin-left: -20px;
+  margin-right: 10px;
 }
 
 nav a.active:hover,
@@ -77,9 +97,67 @@ nav a.active:focus {
 
 }
 
+#site-flag {
+  position: absolute;
+  padding: 10px 15px 10px 35px;
+  top: 8px; right: 0;
+  height: 65px; background: #222;
+  color: #fff;
+  font-weight: 100;
+  text-align: right;
+  box-shadow: -5px 5px 10px #ddd;
+}
+
+#site-flag .left-tip {
+  width: 20px; height: 65px;
+  background: lighten($blue, 10%);
+  position: absolute;
+  left: 0; top: 0;
+}
+
 #page-wrapper {
   margin: 0;
   padding: 0 50px 25px 200px;
+  font-family: Lato, sans-serif;
+}
+
+.device {
+  width: 250px;
+  text-align: center;
+  border: 1px solid #ddd;
+  border-radius: 15px;
+  padding: 20px;
+  position: relative;
+  float: left;
+  margin-right: 15px;
+  cursor: pointer;
+}
+
+.device:hover {
+  box-shadow: 4px 4px 8px #eee;
+}
+
+.device h5 {
+  margin: 0;
+}
+
+.device i {
+  margin-top: 10px;
+}
+
+.device .status {
+  position: absolute;
+  width: 20px; height: 20px;
+  border-radius: 10px;
+  bottom: 10px; right: 10px;
+}
+
+.online {
+  background: $green;
+}
+
+.offline {
+  background: $red;
 }
 
 /* Gems */

@@ -14,78 +14,131 @@ html
           h4 Access Log (Apache)
         .col-6
           a(class='button outline float-right', href='/log') View Raw
-      table(data-component='collapse')
-        tr
-          th Method
-          th Request
-          th Client IP
-          th Access Date
-          th
-        - var prevIP = ''
-        - var expandStarted
-        - var count = -1
-        - var init = true
-        - for (var i=0; i < logs.length; i++)
-          - var log = logs[i]
-          if (log.remote_addr != prevIP)
-            - count++
-            - expandStarted = false
-            - prevIP = log.remote_addr
-            if (init)
-              - init = false
-            else
-              != '</ul></td></tr>'
-            tr
-              td
-                case log.http_method
-                  when 'GET'
-                    .gem-blue= log.http_method
-                  when 'POST'
-                    .gem-green= log.http_method
-                  when 'HEAD'
-                    .gem-red= log.http_method
-                  when '???'
-                    .gem-red= log.http_method
-              td!= log.request.substring(0, 100) + '<br>' + log.request.substring(101, 200) + (log.request.substring(200).length ? '...' : '')
-              td(data-ip=log.remote_addr, class='ip-hover')= log.remote_addr
-                br
-                span
-              td!= log.formatted_time
-              td
-                a(href='#ip-details-' + count, class='collapse-toggle', style='display: block; height: 100%; width: 100%')
+      table(class='clickable', id='access-table')
+        tbody
+          tr
+            th Method
+            th Request
+            th Client IP
+            th Access Date
+            th
+          - var prevIP = ''
+          - var expandStarted
+          - var count = -1
+          - var init = true
+          - for (var i=0; i < logs.length; i++)
+            - var log = logs[i]
+            if (log.remote_addr != prevIP)
+              - count++
+              - expandStarted = false
+              - prevIP = log.remote_addr
+              if (init)
+                - init = false
+              else
+                != '</ul></td></tr>'
+              tr(class='collapse-toggle')
+                td
+                  case log.http_method
+                    when 'GET'
+                      .gem-blue= log.http_method
+                    when 'POST'
+                      .gem-green= log.http_method
+                    when 'HEAD'
+                      .gem-red= log.http_method
+                    when '???'
+                      .gem-red= log.http_method
+                td!= log.request.substring(0, 100) + '<br>' + log.request.substring(101, 200) + (log.request.substring(200).length ? '...' : '')
+                td(data-ip=log.remote_addr, class='ip-hover')= log.remote_addr
+                  br
+                  span
+                td!= log.formatted_time
+                td
                   span(class='caret down')
                 
-          else
-            if (!expandStarted)
-              - expandStarted = true
-              != '<tr style="background: #eee" class="collapse-box hide" id="ip-details-' + count + '"><td colspan=99><ul style="list-style: none">'
-            != '<li> [' + log.formatted_time.replace('<br>', ', ') + '] '
-            case log.http_method
-              when 'GET'
-                != '<span class="gem-text-blue">' + log.http_method + '</span> '
-              when 'POST'
-                != '<span class="gem-text-green">' + log.http_method + '</span> '
-              when 'HEAD'
-                != '<span class="gem-text-red">' + log.http_method + '</span> '
-            != log.request.substring(log.http_method.length + 1, 100) + (log.request.substring(100).length ? '...' : '') + '</li>'
+                  
+            else
+              if (!expandStarted)
+                - expandStarted = true
+                != '<tr style="background: #eee; display: none" class="collapse-box"><td colspan=99><ul style="list-style: none">'
+              != '<li> [' + log.formatted_time.replace('<br>', ', ') + '] '
+              case log.http_method
+                when 'GET'
+                  != '<span class="gem-text-blue">' + log.http_method + '</span> '
+                when 'POST'
+                  != '<span class="gem-text-green">' + log.http_method + '</span> '
+                when 'HEAD'
+                  != '<span class="gem-text-red">' + log.http_method + '</span> '
+              != log.request.substring(log.http_method.length + 1, 100) + (log.request.substring(100).length ? '...' : '') + '</li>'
+      center
+        button(type='button', class='button outline', onclick='loadMore()', id='load-more') Load !{limit} More...
             
     include includes/foot.pug
     script(type='text/javascript', src='js/tooltipster.bundle.min.js')
     script(type='text/javascript').
+    
+      var offset = !{offset};
+      var limit = !{limit};
+    
       $(function() {
+        loadHandlers();
+      });
+      
+      function loadMore() {
+        $.get({
+          url: '/access/' + offset,
+          success: function(response) {
+            if (response.html.length) {
+              offset = response.offset;
+              $('#access-table tbody').append(response.html);
+              loadHandlers();
+            } else {
+              $('#load-more').addClass('secondary disabled').text('No More To Load');
+            }
+          }
+        })
+      }
+      
+      function loadHandlers() {
+        // fix styling on toggles with no contents
+        $('.collapse-toggle').each(function() {
+          if ($(this).next('tr').hasClass('collapse-toggle')) {
+            $(this).removeClass('collapse-toggle').css('cursor', 'default');
+            $(this).find('.caret').removeClass('caret up down');
+          }
+        });
+        
+        // register listeners for new collapsible elements
+        $('#access-table tbody tr.collapse-toggle').on('click', function() {
+          if ($(this).next('.collapse-box').is(':visible')) {
+            $(this).next('.collapse-box').fadeOut()
+          } else {
+            $(this).next('.collapse-box').fadeIn();
+          }
+        });
+        
+        // add tooltips
         $('.ip-hover').each(function() {
+          if ($(this).attr('data-tagged') == 1) return;
+          $(this).attr('data-tagged', 1);
           var that = this;
           $.get({
             url: '/ip/' + $(this).attr('data-ip'),
             success: function(res) {
-              $(that).find('span').text(res.result.city + ', ' + res.result.country)
-                                  .tooltipster({ theme: 'tooltipster-noir', contentAsHTML: true })
-                                  .tooltipster('open')
-                                  .tooltipster('content', ipDetails(res));
+              if (res.result.invalid) {
+                $(that).find('span').text('Invalid IP')
+                                    .tooltipster({ theme: 'tooltipster-noir', contentAsHTML: true })
+                                    .tooltipster('open')
+                                    .tooltipster('content', 'This user appears to have logged in from an invalid IP.');
+              } else {
+                $(that).find('span').text((res.result.city ? res.result.city : 'Unknown') + ', ' + (res.result.country ? res.result.country : 'Unknown'))
+                                    .tooltipster({ theme: 'tooltipster-noir', contentAsHTML: true })
+                                    .tooltipster('open')
+                                    .tooltipster('content', ipDetails(res));
+              }
             }
           });
         });
-      });
+      }
       
       function ipDetails(ip) {
         var result = ip.result;
@@ -95,4 +148,11 @@ html
           if (key.substring(0,1) != '_') output += key.replace('_', ' ') + ': ' + result[key] + '<br>';
         }
         return output.substring(0, output.length-4);
+      }
+      
+      function displayMessage(title, content, duration) {
+        $('#site-message').css('height', '80px').slideDown(500);
+        setTimeout(function() {
+          $('#site-message').slideUp();
+        }, 2000);
       }

@@ -8,7 +8,56 @@ html
     include includes/navigation.pug
     #page-wrapper
       h4 Device Status
-      p View the status of every connected device at this location, at a glance. 
-        b Coming soon.
+      .device(data-component='modal', data-target='#device-modal')
+        h5 Apache Web Server
+        div 192.168.1.18
+        i(class='fa fa-server fa-5x')
+        .status(class='online', title='online')
+          
+      .device(data-component='modal', data-target='#device-modal')
+        h5 Node Customer Server
+        div 192.168.1.18
+        i(class='fa fa-connectdevelop fa-5x')
+        .status(class='online', title='online')
+          
+      .device(data-component='modal', data-target='#device-modal')
+        h5 MySQL Database
+        div 192.168.1.18
+        i(class='fa fa-database fa-5x')
+        .status(class='online', title='online')
+        
+      .device(data-component='modal', data-target='#device-modal')
+        h5 Mongo Database
+        div 192.168.1.18
+        i(class='fa fa-database fa-5x')
+        .status(class='online', title='online')
+          
+      .device(data-component='modal', data-target='#device-modal')
+        h5 Warehouse Camera
+        div not assigned
+        i(class='fa fa-video-camera fa-5x')
+        .status(class='offline', title='offline')
+          
+      .device(data-component='modal', data-target='#device-modal')
+        h5 Raspberry Pi (Scanner)
+        div not assigned
+        i(class='fa fa-gg fa-5x')
+        .status(class='offline', title='offline')
+      
+      br(style='clear:both')
+      h4(style='margin-top: 20px') Device Support
+      h5(style='margin-bottom: 5px') Apache Web Server
+      blockquote The backbone of most services we maintain.
+      p. 
+        Here's a single command by itself: #[code stuff] and here's an entire block of code in context: #[pre some more stuff]
+          
+    #device-modal(class='modal-box hide')
+      .modal
+        span(class='close', style='cursor: pointer')
+        .modal-header Modal Header
+        .modal-body Content Here
 
     include includes/foot.pug
+    script(type='text/javascript').
+    
+      console.log('test')

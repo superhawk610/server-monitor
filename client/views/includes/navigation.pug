@@ -1,13 +1,27 @@
+#site-flag
+  .left-tip
+  span(style='font-weight: 400') United Catalyst
+  br
+  | Technical Support
+  
+.message(class='warning', style='display: none', data-component='message', id='site-message')
+  h5 Message Title
+  span(class='close small', style='cursor: pointer')
+  | This is the message content  
+  
 nav(class='navbar')
   .logo
     img(src='img/logo.gif')
   ul
     li
-      a(href='http://www.unitedcatalystcorporation.com/portal/employees/') Employee Portal
+      a(href='http://192.168.1.1/', target='_new') Router Admin
     li
-      a(href='http://www.unitedcatalystcorporation.com/portal/customers/') Customer Portal
+      a(href='http://www.unitedcatalystcorporation.com/portal/employees/', target='_new') Employee Portal
     li
-      a(href='http://www.unitedcatalystcorporation.com/') Main Site
+      a(href='http://www.unitedcatalystcorporation.com/portal/customers/', target='_new') Customer Portal
+    li
+      a(href='http://www.unitedcatalystcorporation.com/', target='_new') Main Site
+      
 nav(class='sidebar')
   ul
     li

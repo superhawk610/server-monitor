@@ -22,4 +22,11 @@ gulp.task('tooltipster', () => {
       .pipe(gulp.dest('public/js'))
 })
 
-gulp.task('default', [ 'kube', 'jquery', 'tooltipster' ])
+gulp.task('font-awesome', () => {
+  gulp.src('../node_modules/font-awesome/fonts/*')
+      .pipe(gulp.dest('public/fonts'))
+  gulp.src('../node_modules/font-awesome/css/font-awesome.min.css')
+      .pipe(gulp.dest('public/css'))
+})
+
+gulp.task('default', [ 'kube', 'jquery', 'tooltipster', 'font-awesome' ])

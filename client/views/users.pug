@@ -1,14 +1,69 @@
 doctype html
 html
   head
-    include includes/head.pug
     title Server Monitor - Users
+    include includes/head.pug
+    link(href='css/tooltipster.bundle.min.css', rel='stylesheet')
+    link(href='css/themes/tooltipster-sideTip-noir.min.css', rel='stylesheet')
+    style.
+      h5 {
+        margin: 20px 0 0 0;
+      }
       
   body
     include includes/navigation.pug
     #page-wrapper
       h4 Active Users
-      p View all actively logged-in users, as well as user metrics and analytics. 
-        b Coming soon.
+      each service in users
+        h5= service.service
+        table(class='striped')
+          tbody
+            tr
+              th Username/Email
+              th Most Recent Login
+              th Login IP
+            each user in service.users
+              tr
+                td= user.name
+                td= user.last_login
+                td(data-ip=user.ip, class='ip-hover')= user.ip
+                  br
+                  span
 
     include includes/foot.pug
+    script(type='text/javascript', src='js/tooltipster.bundle.min.js')
+    script(type='text/javascript').
+    
+      $(function() {
+        $('.ip-hover').each(function() {
+          if ($(this).attr('data-tagged') == 1) return;
+          $(this).attr('data-tagged', 1);
+          var that = this;
+          $.get({
+            url: '/ip/' + $(this).attr('data-ip'),
+            success: function(res) {
+              if (res.result.invalid) {
+                $(that).find('span').text('Invalid IP')
+                                    .tooltipster({ theme: 'tooltipster-noir', contentAsHTML: true })
+                                    .tooltipster('open')
+                                    .tooltipster('content', 'This user appears to have logged in from an invalid IP.');
+              } else {
+                $(that).find('span').text((res.result.city ? res.result.city : 'Unknown') + ', ' + (res.result.country ? res.result.country : 'Unknown'))
+                                    .tooltipster({ theme: 'tooltipster-noir', contentAsHTML: true })
+                                    .tooltipster('open')
+                                    .tooltipster('content', ipDetails(res));
+              }
+            }
+          });
+        });
+      });
+      
+      function ipDetails(ip) {
+        var result = ip.result;
+        result.first_encountered = ip.first_encountered;
+        var output = '';
+        for (var key in result) {
+          if (key.substring(0,1) != '_') output += key.replace('_', ' ') + ': ' + result[key] + '<br>';
+        }
+        return output.substring(0, output.length-4);
+      }
