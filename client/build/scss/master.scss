@@ -98,6 +98,7 @@ nav a.active:focus {
 }
 
 #site-flag {
+  display: none;
   position: absolute;
   padding: 10px 15px 10px 35px;
   top: 8px; right: 0;
@@ -130,6 +131,7 @@ nav a.active:focus {
   position: relative;
   float: left;
   margin-right: 15px;
+  margin-bottom: 15px;
   cursor: pointer;
 }
 
@@ -150,13 +152,14 @@ nav a.active:focus {
   width: 20px; height: 20px;
   border-radius: 10px;
   bottom: 10px; right: 10px;
+  background: #bbb;
 }
 
-.online {
+.device .status.online {
   background: $green;
 }
 
-.offline {
+.device .status.offline {
   background: $red;
 }
 

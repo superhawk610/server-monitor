@@ -8,56 +8,89 @@ html
     include includes/navigation.pug
     #page-wrapper
       h4 Device Status
-      .device(data-component='modal', data-target='#device-modal')
-        h5 Apache Web Server
-        div 192.168.1.18
-        i(class='fa fa-server fa-5x')
-        .status(class='online', title='online')
-          
-      .device(data-component='modal', data-target='#device-modal')
-        h5 Node Customer Server
-        div 192.168.1.18
-        i(class='fa fa-connectdevelop fa-5x')
-        .status(class='online', title='online')
-          
-      .device(data-component='modal', data-target='#device-modal')
-        h5 MySQL Database
-        div 192.168.1.18
-        i(class='fa fa-database fa-5x')
-        .status(class='online', title='online')
-        
-      .device(data-component='modal', data-target='#device-modal')
-        h5 Mongo Database
-        div 192.168.1.18
-        i(class='fa fa-database fa-5x')
-        .status(class='online', title='online')
-          
-      .device(data-component='modal', data-target='#device-modal')
-        h5 Warehouse Camera
-        div not assigned
-        i(class='fa fa-video-camera fa-5x')
-        .status(class='offline', title='offline')
-          
-      .device(data-component='modal', data-target='#device-modal')
-        h5 Raspberry Pi (Scanner)
-        div not assigned
-        i(class='fa fa-gg fa-5x')
-        .status(class='offline', title='offline')
+      each dev, i in devices
+        .device(data-component='modal', data-target='#device-modal-' + i)
+          h5= dev.name
+          div= dev.ip
+            if dev.port && dev.port.length
+              span(style='color: #bbb')= ':' + dev.port
+          i.fa.fa-5x(class='fa-' + dev.icon)
+          .status(title='searching...', data-ip=dev.ip, data-port=dev.port)
       
       br(style='clear:both')
       h4(style='margin-top: 20px') Device Support
-      h5(style='margin-bottom: 5px') Apache Web Server
-      blockquote The backbone of most services we maintain.
-      p. 
+      each dev in devices
+        h5(style='margin-bottom: 5px')= dev.name
+          each tag in dev.tags
+            span.label(class=tag.category, style='margin-left: 5px')= tag.name
+        blockquote!= dev.description.tagline
+        p!= dev.description.full
+      
+      p.
         Here's a single command by itself: #[code stuff] and here's an entire block of code in context: #[pre some more stuff]
           
-    #device-modal(class='modal-box hide')
-      .modal
-        span(class='close', style='cursor: pointer')
-        .modal-header Modal Header
-        .modal-body Content Here
+    each dev, i in devices
+      div(id='device-modal-' + i, class='modal-box hide')
+        .modal
+          span(class='close', style='cursor: pointer')
+          .modal-header= dev.name
+          .modal-body
+            dl
+              dt Device/Service Name
+              dd= dev.name
+              if dev.make && dev.make.length
+                dt Manufacturer
+                dd= dev.make
+              if dev.model && dev.model.length
+                dt Model
+                dd= dev.model
+              dt Network Location
+              dd= dev.ip || 'unknown'
+                if dev.port && dev.port.length
+                  span(style='color: #bbb')= ':' + dev.port
+              dt MAC Address
+              dd= dev.mac || 'unknown'
+              dt 
+                | Account Credentials&nbsp;
+                span(style='font-weight: 400') (user&nbsp;
+                  span(style='color: #bbb') pass
+                  | )
+              if dev.credentials && dev.credentials.length
+                each cred in dev.credentials
+                  dd= cred.user
+                    span(style='color: #bbb')= ' ' + cred.pass
+              else
+                dd none provided
+              br
+              br
+              dt Description
+              dd!= dev.description.short
 
     include includes/foot.pug
     script(type='text/javascript').
-    
-      console.log('test')
+      
+      $(function() {  
+        $('.device .status').each(function() {
+          console.log($(this).parent().attr('data-target'));
+          var that = this;
+          $.ajax({
+            method: 'get',
+            url: '/status/' +
+                 $(this).attr('data-ip') + '/' +
+                 $(this).attr('data-port'),
+            success: function(response) {
+              console.log(response);
+              $(that).addClass(response).attr('title', response);
+            },
+            error: function(request, reason, error) {
+              if (reason == 'timeout') {
+                $(that).addClass('offline').attr('title', 'offline');
+              } else {
+                console.log(reason);
+                console.log(error);
+              }
+            },
+            timeout: 5000
+          });
+        });
+      });
