@@ -16,7 +16,8 @@ var DeviceSchema = new Schema({
   description: {
     tagline: String,
     short: String,
-    full: String
+    full: String,
+    hide: Boolean
   },
   credentials: [{
     user: String,

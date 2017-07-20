@@ -20,14 +20,12 @@ html
       br(style='clear:both')
       h4(style='margin-top: 20px') Device Support
       each dev in devices
-        h5(style='margin-bottom: 5px')= dev.name
-          each tag in dev.tags
-            span.label(class=tag.category, style='margin-left: 5px')= tag.name
-        blockquote!= dev.description.tagline
-        p!= dev.description.full
-      
-      p.
-        Here's a single command by itself: #[code stuff] and here's an entire block of code in context: #[pre some more stuff]
+        unless dev.description.hide
+          h5(style='margin-bottom: 5px')= dev.name
+            each tag in dev.tags
+              span.label(class=tag.category, style='margin-left: 5px')= tag.name
+          blockquote!= dev.description.tagline
+          p!= dev.description.full
           
     each dev, i in devices
       div(id='device-modal-' + i, class='modal-box hide')
