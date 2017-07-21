@@ -46,8 +46,9 @@ html
               dd= dev.ip || 'unknown'
                 if dev.port && dev.port.length
                   span(style='color: #bbb')= ':' + dev.port
-              dt MAC Address
-              dd= dev.mac || 'unknown'
+              if dev.mac
+                dt MAC Address
+                dd= dev.mac
               dt 
                 | Account Credentials&nbsp;
                 span(style='font-weight: 400') (user&nbsp;
