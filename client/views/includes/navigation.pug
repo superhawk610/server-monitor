@@ -16,9 +16,9 @@ nav(class='navbar')
     li
       a(href='http://192.168.1.1/', target='_new') Router Admin
     li
-      a(href='http://www.unitedcatalystcorporation.com/portal/employees/', target='_new') Employee Portal
+      a(href='https://portal.unitedcatalystcorporation.com/', target='_new') Employee Portal
     li
-      a(href='http://www.unitedcatalystcorporation.com/portal/customers/', target='_new') Customer Portal
+      a(href='https://portal.unitedcatalystcorporation.com/c/', target='_new') Customer Portal
     li
       a(href='http://www.unitedcatalystcorporation.com/', target='_new') Main Site
       
@@ -28,7 +28,6 @@ nav(class='sidebar')
       if route == 'access'
         a(href='#', class='active') Access Log
       else
-        - console.log(route)
         a(href='/access') Access Log
     li
       if route == 'status'
@@ -40,3 +39,8 @@ nav(class='sidebar')
         a(href='#', class='active') Active Users
       else
         a(href='/users') Active Users
+    li
+      if route == 'backups'
+        a(href='#', class='active') Backups
+      else
+        a(href='/backups') Backups

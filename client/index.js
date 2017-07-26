@@ -10,6 +10,10 @@ mongoose.Promise        = require('bluebird')
 const request           = require('request')
 const LineByLineReader  = require('line-by-line')
 const exec              = require('child_process').exec
+const AWS               = require('aws-sdk')
+const moment            = require('moment')
+const uuid              = require('uuid/v4')
+const archiver          = require('archiver')
 
 const port              = 3000
 const limit             = 10
@@ -20,9 +24,13 @@ const db_pass           = cfg.pass
 const db_host           = cfg.host
 const db_port           = cfg.port
 const db                = cfg.db
+const api_key           = cfg.api_key
 
+var Backup              = require('./models/Backup')
 var IP                  = require('./models/IP')
 var Device              = require('./models/Device')
+
+var jobs                = JSON.parse(fs.readFileSync(path.join(__dirname, 'active_jobs.json')))
 
 /*
  * Available log components:
@@ -54,6 +62,8 @@ app.use(sass({
   prefix: '/css'
 }))
 app.use(express.static(path.join(__dirname, 'public')))
+
+app.locals.moment = moment
 
 mongoose.connect(`mongodb://${db_user}:${db_pass}@${db_host}:${db_port}/${db}?authSource=admin`, {
   useMongoClient: true
@@ -120,6 +130,54 @@ app.get('/users', (req, res) => {
   ] })
 })
 
+app.get('/backups', (req, res) => {
+  Backup.find({}, (err, backups) => {
+    res.render('backups', { route: 'backups', backups: backups, activeJobs: jobs })
+  })
+})
+
+app.put('/backups', (req, res) => {
+  var glacier   = new AWS.Glacier({ region: 'us-east-2', apiVersion: '2012-06-01' }),
+      vaultName = 'main-backup',
+      // buffer    = new Buffer(2.5 * 1024 * 1024), // 2.5MB buffer
+      desc      = 'sm-backup-' + moment().format('MM-DD-YYYY'),
+      jobId     = uuid()
+      job       = {
+        name: desc,
+        date: new Date(),
+        status: 0
+      }
+
+  archiveDir(path.join(__dirname, 'foo'), (filename) => {
+    job.status = 1
+    var buffer = fs.readFileSync(filename)
+    var params = { vaultName: vaultName, body: buffer, archiveDescription: desc }
+    console.log(params)
+    glacier.uploadArchive(params, (err, data) => {
+      if (err) console.log('Error uploading archive!', err)
+      else {
+        console.log('Archive ID', data.archiveId)
+        delete jobs[jobId]
+        delete job.status
+        job.date = new Date()
+        job.id = data.archiveId
+        var backup = new Backup(job)
+        backup.save(() => {
+          console.log('Archive logged to DB')
+          fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs), () => {
+            console.log('Job listing updated')
+          })
+        })
+      }
+    })
+  })
+
+  jobs[jobId] = job
+  fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs), () => {
+    res.status(200).json({ message: 'Job started, check back to see its progress' })
+  })
+})
+
 app.get('/log', (req, res) => {
   parseLog((logs) => {
     res.json(logs)
@@ -160,7 +218,42 @@ app.listen(port, () => {
   console.log('Server monitor listening on port 3000!')
 })
 
-function parseLog(callback, options) {
+function archiveDir(dir, callback) {
+  // create a file to stream archive data to. 
+  var result = path.join(__dirname, 'archive-' + uuid() + '.tar.gz')
+  var output = fs.createWriteStream(result)
+  var archive = archiver('tar', {
+    gzip: true,
+    gzipOptions: { level: 9 } // Sets the compression level. 
+  })
+  
+  output.on('close', () => {
+    console.log(archive.pointer() + ' total bytes')
+    console.log('archiver has been finalized and the output file descriptor has closed.')
+    callback(result)
+  })
+  
+  archive.on('warning', (err) => {
+    if (err.code === 'ENOENT') {
+        // log warning 
+    } else {
+        // throw error 
+        throw err
+    }
+  })
+  
+  archive.on('error', (err) => {
+    throw err
+  })
+
+  archive.directory(dir, false)
+  archive.append(fs.createReadStream(path.join(__dirname, 'test.txt')), { name: 'foobar.txt' })
+  
+  archive.pipe(output);  
+  archive.finalize()
+}
+
+function parseLog(options, callback) {
   //var logsText = fs.readFileSync('/var/www/log/access.log', 'utf8').split('\n')
   var count = 0
   var shouldEnd = false
