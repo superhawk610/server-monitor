@@ -14,7 +14,7 @@ const exec              = require('child_process').exec
 const port              = 3000
 const limit             = 10
 
-const cfg               = fs.readFileSync('site.config')
+const cfg               = JSON.parse(fs.readFileSync(path.join(__dirname, 'site.config')))
 const db_user           = cfg.user
 const db_pass           = cfg.pass
 const db_host           = cfg.host
