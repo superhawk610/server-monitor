@@ -2,12 +2,13 @@ var jobs = {}
 $('.backup-now').on('click', function(e) {
   e.preventDefault()
   var target = $(this).attr('data-dir')
+  var desc = $(this).attr('data-desc')
   if (!jobs[target]) {
     jobs[target] = true
     $.ajax({
       method: 'put',
       url: 'backups',
-      data: 'path=' + target + '&key=#APIKEY#',
+      data: 'desc=' + desc + '&path=' + target + '&key=#APIKEY#',
       success: function(response) {
         notify(response.message, 'primary')
       }

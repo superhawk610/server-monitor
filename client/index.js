@@ -155,7 +155,7 @@ app.put('/backups', (req, res) => {
   var glacier   = new AWS.Glacier({ region: 'us-east-2', apiVersion: '2012-06-01' }),
       vaultName = 'main-backup',
       // buffer    = new Buffer(2.5 * 1024 * 1024), // 2.5MB buffer
-      desc      = 'sm-backup-' + moment().format('MM-DD-YYYY'),
+      desc      = req.body.desc + '-backup-' + moment().format('MM-DD-YYYY'),
       jobId     = uuid()
       job       = {
         name: desc,
@@ -166,6 +166,10 @@ app.put('/backups', (req, res) => {
   console.log(req.body)
   archiveDir(req.body.path, (filename) => {
     job.status = 1
+    jobs[jobId] = job
+    fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs), () => {
+      res.status(200).json({ message: 'Job started, refresh the page to see its progress', job: job })
+    })
     var buffer = fs.readFileSync(filename)
     var params = { vaultName: vaultName, body: buffer, archiveDescription: desc }
 
