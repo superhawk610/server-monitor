@@ -167,9 +167,7 @@ app.put('/backups', (req, res) => {
   archiveDir(req.body.path, (filename) => {
     job.status = 1
     jobs[jobId] = job
-    fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs), () => {
-      res.status(200).json({ message: 'Job started, refresh the page to see its progress', job: job })
-    })
+    fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs))
     var buffer = fs.readFileSync(filename)
     var params = { vaultName: vaultName, body: buffer, archiveDescription: desc }
 
