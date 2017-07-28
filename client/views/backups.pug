@@ -16,15 +16,15 @@ html
           a.close.show-sm(href='')
             ul
               li
-                a.backup-now(href='#', data-dir='/var/www/html/main') Main Site
+                a.backup-now(href='#', data-desc='main', data-dir='/var/www/html/main') Main Site
               li
-                a.backup-now(href='#', data-dir='/var/www/html/alt') Dev Site
+                a.backup-now(href='#', data-desc='alt', data-dir='/var/www/html/alt') Dev Site
               li
-                a.backup-now(href='#', data-dir='/home/server/ucc-local') Z:/ Drive
+                a.backup-now(href='#', data-desc='ucc-local', data-dir='/home/server/ucc-local') Z:/ Drive
               li
-                a.backup-now(href='#', data-dir='/etc') Server Configuration (/etc)
+                a.backup-now(href='#', data-desc='etc', data-dir='/etc') Server Configuration (/etc)
               li
-                a.backup-now(href='#', data-dir='/var/www') Webroot (/var/www)
+                a.backup-now(href='#', data-desc='www', data-dir='/var/www') Webroot (/var/www)
       if Object.keys(activeJobs).length
         h5 Active Jobs
         ul
