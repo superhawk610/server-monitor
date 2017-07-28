@@ -140,6 +140,10 @@ app.get('/backups', (req, res) => {
 })
 
 app.put('/backups', (req, res) => {
+  if (req.body.api_key != api_key || req.body.key != api_key) {
+    res.status(403).json({ message: 'Please provide a valid API key to initiate this request.' })
+    return
+  }
   var glacier   = new AWS.Glacier({ region: 'us-east-2', apiVersion: '2012-06-01' }),
       vaultName = 'main-backup',
       // buffer    = new Buffer(2.5 * 1024 * 1024), // 2.5MB buffer
