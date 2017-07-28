@@ -106,7 +106,7 @@ app.get('/status/:ip/:port', (req, res) => {
   var port = req.params.port || 80
   var cmd = `nc -q 5 -z ${ip} ${port}; echo $?`
   exec(cmd, (err, stdout, stderr) => {
-    console.log(stdout)
+    //console.log(stdout)
     res.send((stdout.trim() == '0') ? 'online' : 'offline')
   })
 })
@@ -253,7 +253,7 @@ function archiveDir(dir, callback) {
   archive.finalize()
 }
 
-function parseLog(options, callback) {
+function parseLog(callback, options) {
   //var logsText = fs.readFileSync('/var/www/log/access.log', 'utf8').split('\n')
   var count = 0
   var shouldEnd = false

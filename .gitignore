@@ -1,3 +1,4 @@
 node_modules
 client/site.config
 client/credentials
+package-lock.json
