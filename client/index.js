@@ -14,6 +14,7 @@ const AWS               = require('aws-sdk')
 const moment            = require('moment')
 const uuid              = require('uuid/v4')
 const archiver          = require('archiver')
+const bodyParser        = require('body-parser')
 
 const port              = 3000
 const limit             = 10
@@ -62,6 +63,8 @@ app.use(sass({
   prefix: '/css'
 }))
 app.use(express.static(path.join(__dirname, 'public')))
+app.use(bodyParser.urlencoded({ extended: false }))
+app.use(bodyParser.json())
 
 app.locals.moment = moment
 
@@ -148,11 +151,12 @@ app.put('/backups', (req, res) => {
         status: 0
       }
 
-  archiveDir(path.join(__dirname, 'foo'), (filename) => {
+  console.log(req.body)
+  archiveDir(req.body.path, (filename) => {
     job.status = 1
     var buffer = fs.readFileSync(filename)
     var params = { vaultName: vaultName, body: buffer, archiveDescription: desc }
-    console.log(params)
+
     glacier.uploadArchive(params, (err, data) => {
       if (err) console.log('Error uploading archive!', err)
       else {
@@ -167,6 +171,7 @@ app.put('/backups', (req, res) => {
           fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs), () => {
             console.log('Job listing updated')
           })
+          fs.unlink(filename)
         })
       }
     })
@@ -174,7 +179,7 @@ app.put('/backups', (req, res) => {
 
   jobs[jobId] = job
   fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs), () => {
-    res.status(200).json({ message: 'Job started, check back to see its progress' })
+    res.status(200).json({ message: 'Job started, refresh the page to see its progress', job: job })
   })
 })
 
@@ -247,7 +252,6 @@ function archiveDir(dir, callback) {
   })
 
   archive.directory(dir, false)
-  archive.append(fs.createReadStream(path.join(__dirname, 'test.txt')), { name: 'foobar.txt' })
   
   archive.pipe(output);  
   archive.finalize()

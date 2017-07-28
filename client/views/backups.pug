@@ -7,15 +7,37 @@ html
   body
     include includes/navigation.pug
     #page-wrapper
-      h4 AWS Glacier Storage
+      h4
+        | AWS Glacier Storage
+        button.float-right(data-component='dropdown', data-target='#action-dropdown')
+          | Backup Now
+          span.caret.down
+        .dropdown.hide#action-dropdown
+          a.close.show-sm(href='')
+            ul
+              li
+                a.backup-now(href='#', data-dir='/var/www/html/main') Main Site
+              li
+                a.backup-now(href='#', data-dir='/var/www/html/alt') Dev Site
+              li
+                a.backup-now(href='#', data-dir='/home/server/ucc-local') Z:/ Drive
+              li
+                a.backup-now(href='#', data-dir='/etc') Server Configuration (/etc)
+              li
+                a.backup-now(href='#', data-dir='/var/www') Webroot (/var/www)
       if Object.keys(activeJobs).length
         h5 Active Jobs
         ul
+          - var style = ''
+          - var desc = ''
           each j in Object.keys(activeJobs)
-            li!= 'Backup Name: ' + activeJobs[j].name + '<br>Start Date: ' + moment(activeJobs[j].date).format('MMMM Do YYYY, h:mm:ss a') + '<br><span style="color: #888">Job ID: ' + j + '</span>'
+            - style = activeJobs[j].status == 0 ? 'warning' : 'focus'
+            - desc = activeJobs[j].status == 0 ? 'Archiving' : 'Uploading'
+            li!= 'Backup Name: ' + activeJobs[j].name + `<span style="margin-left: 5px" class="label ${style}">${desc}</span><br>Start Date: ` + moment(activeJobs[j].date).format('MMMM Do YYYY, h:mm:ss a') + '<br><span style="color: #888">Job ID: ' + j + '</span>'
       h5 Existing Backups
       ul
         each b in backups
           li!= 'Backup Name: ' + b.name + '<br>Backup Date: ' + moment(b.date).format('MMMM Do YYYY, h:mm:ss a') + '<br><span style="color: #ccc">Archive ID: ' + b.id + '</span>'
 
     include includes/foot.pug
+    script(src='js/main.js')
