@@ -7,7 +7,7 @@ $('.backup-now').on('click', function(e) {
     $.ajax({
       method: 'put',
       url: 'backups',
-      data: 'path=' + target,
+      data: 'path=' + target + '&key=#APIKEY#',
       success: function(response) {
         notify(response.message, 'primary')
       }

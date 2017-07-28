@@ -62,6 +62,11 @@ app.use(sass({
   outputStyle: 'compressed',
   prefix: '/css'
 }))
+app.get('/js/main.js', (req, res) => {
+  fs.readFile(path.join(__dirname, 'public/js/main.js'), 'utf8', (err, file) => {
+    res.type('text/javascript').send(file.replace(/#APIKEY#/g, api_key))
+  })
+})
 app.use(express.static(path.join(__dirname, 'public')))
 app.use(bodyParser.urlencoded({ extended: false }))
 app.use(bodyParser.json())
@@ -140,9 +145,12 @@ app.get('/backups', (req, res) => {
 })
 
 app.put('/backups', (req, res) => {
-  if (req.body.api_key != api_key || req.body.key != api_key) {
-    res.status(403).json({ message: 'Please provide a valid API key to initiate this request.' })
-    return
+  console.log(req.body.key)
+  if (req.body.api_key != api_key) {
+    if (req.body.key != api_key) {
+      res.status(403).json({ message: 'Please provide a valid API key to initiate this request.' })
+      return
+    }
   }
   var glacier   = new AWS.Glacier({ region: 'us-east-2', apiVersion: '2012-06-01' }),
       vaultName = 'main-backup',
