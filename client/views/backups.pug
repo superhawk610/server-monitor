@@ -32,7 +32,7 @@ html
           - var desc = ''
           each j in Object.keys(activeJobs)
             - style = activeJobs[j].status == 0 ? 'warning' : 'focus'
-            - desc = activeJobs[j].status == 0 ? 'Archiving' : 'Uploading'
+            - desc = activeJobs[j].status == 0 ? 'Archiving' : (activeJobs[j].pieces ? `Uploading (${activeJobs[j].currentChunkIndex + 1}/${activeJobs[j].pieces})` : 'Uploading')
             li!= 'Backup Name: ' + activeJobs[j].name + `<span style="margin-left: 5px" class="label ${style}">${desc}</span><br>Start Date: ` + moment(activeJobs[j].date).format('MMMM Do YYYY, h:mm:ss a') + '<br><span style="color: #888">Job ID: ' + j + '</span>'
       h5 Existing Backups
       ul

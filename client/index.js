@@ -18,6 +18,7 @@ const bodyParser        = require('body-parser')
 
 const port              = 3000
 const limit             = 10
+const chunkSize         = 256 * Math.pow(10, 8)
 
 const cfg               = JSON.parse(fs.readFileSync(path.join(__dirname, 'site.config')))
 const db_user           = cfg.user
@@ -152,46 +153,22 @@ app.put('/backups', (req, res) => {
       return
     }
   }
-  var glacier   = new AWS.Glacier({ region: 'us-east-2', apiVersion: '2012-06-01' }),
-      vaultName = 'main-backup',
-      // buffer    = new Buffer(2.5 * 1024 * 1024), // 2.5MB buffer
-      desc      = req.body.desc + '-backup-' + moment().format('MM-DD-YYYY'),
-      jobId     = uuid()
-      job       = {
-        name: desc,
+  var job = {
+        jobId: uuid(),
+        glacier: new AWS.Glacier({ region: 'us-east-2', apiVersion: '2012-06-01' }),
+        vaultName: 'main-backup',
+        name: req.body.desc + '-backup-' + moment().format('MM-DD-YYYY'),
         date: new Date(),
         status: 0
       }
 
-  console.log(req.body)
-  archiveDir(req.body.path, (filename) => {
-    job.status = 1
-    jobs[jobId] = job
-    fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs))
-    var buffer = fs.readFileSync(filename)
-    var params = { vaultName: vaultName, body: buffer, archiveDescription: desc }
-
-    glacier.uploadArchive(params, (err, data) => {
-      if (err) console.log('Error uploading archive!', err)
-      else {
-        console.log('Archive ID', data.archiveId)
-        delete jobs[jobId]
-        delete job.status
-        job.date = new Date()
-        job.id = data.archiveId
-        var backup = new Backup(job)
-        backup.save(() => {
-          console.log('Archive logged to DB')
-          fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs), () => {
-            console.log('Job listing updated')
-          })
-          fs.unlink(filename)
-        })
-      }
-    })
+  archiveDir(req.body.path, (filename, bytes) => {
+    job.filename = filename
+    job.bytes = bytes
+    initiateUpload(job)
   })
 
-  jobs[jobId] = job
+  jobs[job.jobId] = job
   fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs), () => {
     res.status(200).json({ message: 'Job started, refresh the page to see its progress', job: job })
   })
@@ -237,6 +214,80 @@ app.listen(port, () => {
   console.log('Server monitor listening on port 3000!')
 })
 
+function initiateUpload(job) {
+  job.status = 1
+  var params = { vaultName: job.vaultName, archiveDescription: job.name }
+  if (job.bytes < chunkSize) { // single part upload
+    var buffer = fs.readFileSync(job.filename)
+    params.body = buffer
+    job.glacier.uploadArchive(params, (err, data) => {
+      completeUpload(job, err, data)
+    })
+    jobs[job.jobId] = job
+    fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs))
+  } else {                     // multipart upload
+    job.pieces = Math.trunc(job.bytes / chunkSize) + (job.bytes % chunkSize == 0 ? 0 : 1)
+    params.partSize = chunkSize
+    job.glacier.initiateMultipartUpload(params, (err, data) => {
+      job.uploadId = data.uploadId
+      job.currentChunkIndex = 0
+      uploadChunk(job, 0)
+    })
+  }
+}
+
+function uploadChunk(job, chunkIndex) {
+  var offset = chunkIndex * chunkSize
+  var length = chunkIndex == job.pieces - 1 ? job.bytes % chunkSize : chunkSize
+  var end = offset + length
+  var buffer = new Buffer(length)
+  fs.read(job.filename, buffer, chunkIndex * chunkSize, chunkSize, 0, () => {
+    var params = { vaultName: job.vaultName, uploadId: job.uploadId, body: buffer, range: `bytes ${offset}-${end}/*` }
+    job.glacier.uploadMultipartPart(params, (err, data) => {
+      if (chunkIndex == job.pieces - 1) { // complete upload
+        delete params.body
+        delete params.range
+        params.archiveSize = job.bytes
+        job.glacier.completeMultipartUpload(params, (err, data) => {
+          completeUpload(job, err, data)
+        })
+      } else {
+        job.currentChunkIndex = chunkIndex + 1
+        uploadChunk(job, chunkIndex + 1)  // continue upload with next chunk
+      }
+    })
+  })
+  jobs[jobId] = job
+  fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs))
+}
+
+function completeUpload(job, err, data) {
+  if (err) console.log('Error uploading archive!', err)
+    else {
+      console.log('Archive ID', data.archiveId)
+      var filename = job.filename
+      delete jobs[jobId]
+      delete job.status
+      delete job.filename
+      delete job.bytes
+      delete job.pieces
+      delete job.currentChunkIndex
+      delete job.vaultName
+      delete job.glacier
+      delete job.jobId
+      job.date = new Date()
+      job.id = data.archiveId
+      var backup = new Backup(job)
+      backup.save(() => {
+        console.log('Archive logged to DB')
+        fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs), () => {
+          console.log('Job listing updated')
+        })
+        fs.unlink(filename)
+      })
+    }
+}
+
 function archiveDir(dir, callback) {
   // create a file to stream archive data to. 
   var result = path.join(__dirname, 'archive-' + uuid() + '.tar.gz')
@@ -249,7 +300,7 @@ function archiveDir(dir, callback) {
   output.on('close', () => {
     console.log(archive.pointer() + ' total bytes')
     console.log('archiver has been finalized and the output file descriptor has closed.')
-    callback(result)
+    callback(result, archive.pointer())
   })
   
   archive.on('warning', (err) => {
@@ -293,6 +344,7 @@ function parseLog(callback, options) {
       offset--
       return
     }
+    if (line == '') return
     var log = parse(line)
     if (shouldEnd) {
       if (log.remote_addr != endingIP) {
