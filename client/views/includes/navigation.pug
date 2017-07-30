@@ -4,15 +4,15 @@
   br
   | Technical Support
   
-.message(class='warning', style='display: none', data-component='message', id='site-message')
+.message(style='display: none', data-component='message', id='site-message')
   h5 Message Title
   span(class='close small', style='cursor: pointer')
   | This is the message content  
   
-nav(class='navbar')
+nav.navbar
   .logo
     img(src='img/logo.gif')
-  ul
+  ul.hide-sm
     li
       a(href='http://192.168.1.1/', target='_new') Router Admin
     li
@@ -21,7 +21,7 @@ nav(class='navbar')
       a(href='https://portal.unitedcatalystcorporation.com/c/', target='_new') Customer Portal
     li
       a(href='http://www.unitedcatalystcorporation.com/', target='_new') Main Site
-      
+
 nav(class='sidebar')
   ul
     li

@@ -9,12 +9,14 @@ html
     #page-wrapper
       h4
         | AWS Glacier Storage
-        button.float-right(data-component='dropdown', data-target='#action-dropdown')
+        button.button.primary.float-right(data-component='dropdown', data-target='#action-dropdown')
           | Backup Now
           span.caret.down
         .dropdown.hide#action-dropdown
           a.close.show-sm(href='')
             ul
+              li
+                a.backup-now(href='#', data-desc='dummy', data-dir='/dummy') Dummy
               li
                 a.backup-now(href='#', data-desc='main', data-dir='/var/www/html/main') Main Site
               li
@@ -25,19 +27,84 @@ html
                 a.backup-now(href='#', data-desc='etc', data-dir='/etc') Server Configuration (/etc)
               li
                 a.backup-now(href='#', data-desc='www', data-dir='/var/www') Webroot (/var/www)
-      if Object.keys(activeJobs).length
-        h5 Active Jobs
-        ul
-          - var style = ''
-          - var desc = ''
-          each j in Object.keys(activeJobs)
-            - style = activeJobs[j].status == 0 ? 'warning' : 'focus'
-            - desc = activeJobs[j].status == 0 ? 'Archiving' : (activeJobs[j].pieces ? `Uploading (${activeJobs[j].currentChunkIndex + 1}/${activeJobs[j].pieces})` : 'Uploading')
-            li!= 'Backup Name: ' + activeJobs[j].name + `<span style="margin-left: 5px" class="label ${style}">${desc}</span><br>Start Date: ` + moment(activeJobs[j].date).format('MMMM Do YYYY, h:mm:ss a') + '<br><span style="color: #888">Job ID: ' + j + '</span>'
+
+      h5 Archive Jobs
+      ul
+        - var style = ''
+        - var desc = ''
+        - var count = 0
+        each j in Object.keys(activeJobs)
+          - var job = activeJobs[j]
+          if job.type == 'backup'
+            - count++
+            - style = job.status == 0 ? 'warning' : 'focus'
+            - desc = job.status == 0 ? 'Archiving (' + (job.archiverTotalSize == 0 ? '...' : job.archiverFilesProgress + '/' + job.archiverTotalFiles + ' files | ' + (job.archiverSizeProgress / 1000000000).toFixed(2) + 'GB/' + (job.archiverTotalSize / 1000000000).toFixed(2) + 'GB | ' + (job.archiverSizeProgress / job.archiverTotalSize * 100).toFixed(2) + '%') + ')' : (job.pieces ? `Uploading (${job.currentChunkIndex + 1}/${job.pieces})` : 'Uploading')
+            li
+              = job.name
+              span.label(style='margin-left: 5px', class=style)= desc
+              br
+              | Start Date:&nbsp;
+              = moment(job.date).format('MMMM Do YYYY, h:mm:ss a')
+              br
+              span.break-dark
+                | Job ID:&nbsp;
+                = j
+              if job.uploadId
+                br
+                span.break-light
+                  | Archive ID:&nbsp;
+                  = job.uploadId
+        if count
+          count = 0
+        else
+          span(style='color: #888') No active backup jobs.
+        
+      h5 Retrieval Jobs
+      ul
+        each j in Object.keys(activeJobs)
+          - var job = activeJobs[j]
+          if job.type == 'retrieval'
+            - count++
+            - style = ['success', 'primary', 'focus', 'danger', 'success'][job.status]
+            - desc = ['Initiated', 'Preparing', 'Downloading', 'Failed', 'Downloaded'][job.status]
+            li
+              = job.name
+              span.label(style='margin-left: 5px', class=style)= desc
+              button.button.float-right.primary.download-now(data-job=j) Update
+              br
+              if job.errorMessage
+                span.error-text
+                  | Error:&nbsp;
+                  = job.errorMessage
+                br
+              | Start Date:&nbsp;
+              = moment(job.date).format('MMMM Do YYYY, h:mm:ss a')
+              br
+              span.break-dark
+                | Job ID:&nbsp;
+                = j
+              br
+              span.break-light
+                | Archive ID:&nbsp;
+                = job.archiveId
+        unless count
+          span(style='color: #888') No active retrieval jobs.
+      
+      hr
+
       h5 Existing Backups
       ul
         each b in backups
-          li!= 'Backup Name: ' + b.name + '<br>Backup Date: ' + moment(b.date).format('MMMM Do YYYY, h:mm:ss a') + '<br><span style="color: #ccc">Archive ID: ' + b.id + '</span>'
+          li(style='margin-bottom: 20px')
+            | Backup Name:&nbsp;
+            = b.name
+            button.button.float-right.secondary.retrieve-now(data-archive=b.id) Retrieve
+            button.button.float-right.danger.delete-now(data-archive=b.id, style='margin-right: 5px') Delete
+            br
+            | Backup Date:&nbsp;
+            = moment(b.date).format('MMMM Do YYYY, h:mm:ss a')
+            br
+            span.break-light= 'Archive ID: ' + b.id
 
     include includes/foot.pug
     script(src='js/main.js')

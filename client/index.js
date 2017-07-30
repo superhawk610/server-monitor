@@ -18,7 +18,12 @@ const bodyParser        = require('body-parser')
 
 const port              = 3000
 const limit             = 10
-const chunkSize         = 256 * Math.pow(10, 8)
+ const chunkSize         = Math.pow(2, 26) // ~ 64 MB
+const jobFile           = path.join(__dirname, 'active_jobs.json')
+const jobUpdateTime     = 5 * 60 * 1000
+
+const glacier           = new AWS.Glacier({ region: 'us-east-2', apiVersion: '2012-06-01' })
+const vaultName         = 'main-backup'
 
 const cfg               = JSON.parse(fs.readFileSync(path.join(__dirname, 'site.config')))
 const db_user           = cfg.user
@@ -27,12 +32,20 @@ const db_host           = cfg.host
 const db_port           = cfg.port
 const db                = cfg.db
 const api_key           = cfg.api_key
+const noAuth            = (cfg.noAuth ? '' : '?authSource=admin')
 
 var Backup              = require('./models/Backup')
 var IP                  = require('./models/IP')
 var Device              = require('./models/Device')
 
-var jobs                = JSON.parse(fs.readFileSync(path.join(__dirname, 'active_jobs.json')))
+var jobs
+fs.readFile(jobFile, 'utf8', (err, data) => {
+  if (err) jobs = {}
+  else {
+    if (jobs == '') jobs = {}
+    else jobs = JSON.parse(data)
+  }
+})
 
 /*
  * Available log components:
@@ -74,7 +87,9 @@ app.use(bodyParser.json())
 
 app.locals.moment = moment
 
-mongoose.connect(`mongodb://${db_user}:${db_pass}@${db_host}:${db_port}/${db}?authSource=admin`, {
+var auth = `${db_user}:${db_pass}@`
+if (!db_pass) auth = ''
+mongoose.connect(`mongodb://${auth}${db_host}:${db_port}/${db}${noAuth}`, {
   useMongoClient: true
 })
 
@@ -139,41 +154,6 @@ app.get('/users', (req, res) => {
   ] })
 })
 
-app.get('/backups', (req, res) => {
-  Backup.find({}, (err, backups) => {
-    res.render('backups', { route: 'backups', backups: backups, activeJobs: jobs })
-  })
-})
-
-app.put('/backups', (req, res) => {
-  console.log(req.body.key)
-  if (req.body.api_key != api_key) {
-    if (req.body.key != api_key) {
-      res.status(403).json({ message: 'Please provide a valid API key to initiate this request.' })
-      return
-    }
-  }
-  var job = {
-        jobId: uuid(),
-        glacier: new AWS.Glacier({ region: 'us-east-2', apiVersion: '2012-06-01' }),
-        vaultName: 'main-backup',
-        name: req.body.desc + '-backup-' + moment().format('MM-DD-YYYY'),
-        date: new Date(),
-        status: 0
-      }
-
-  archiveDir(req.body.path, (filename, bytes) => {
-    job.filename = filename
-    job.bytes = bytes
-    initiateUpload(job)
-  })
-
-  jobs[job.jobId] = job
-  fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs), () => {
-    res.status(200).json({ message: 'Job started, refresh the page to see its progress', job: job })
-  })
-})
-
 app.get('/log', (req, res) => {
   parseLog((logs) => {
     res.json(logs)
@@ -210,77 +190,257 @@ app.get('/ip/:ip', (req, res) => {
   })
 })
 
+app.get('/backups', (req, res) => {
+  Backup.find({}, (err, backups) => {
+    res.render('backups', { route: 'backups', backups: backups, activeJobs: jobs })
+  })
+})
+
+app.post('/backups', (req, res) => {
+  if (req.body.api_key != api_key) {
+    if (req.body.key != api_key) {
+      return res.status(403).json({ message: 'Please provide a valid API key to initiate this request.' })
+    }
+  }
+  if (!req.body.archive) {
+    return res.status(400).json({ message: 'Please provide an archive to retrieve.' })
+  }
+  var archiveId = req.body.archive
+  res.status(200).json({ message: 'Retrieval job initiated. Please check back when the job is ready.' })
+
+  var params = {
+    vaultName: vaultName,
+    jobParameters: {
+      Description: `Retrieval job for ${archiveId}`,
+      Type: 'archive-retrieval',
+      ArchiveId: archiveId
+    }
+  }
+  var job = {
+    name: `Retrieval job for ${archiveId.substring(0, 15)}...`,
+    type: 'retrieval',
+    vaultName: vaultName,
+    date: new Date(),
+    status: 0,
+    archiveId: archiveId
+  }
+
+  console.log('initiating retrieval job for archive ' + archiveId)
+  glacier.initiateJob(params, (err, data) => {
+    if (err) console.log(err, err.stack)
+    else {
+      console.log('retrieval job initiated with jobId ' + data.jobId)
+      job.jobId = data.jobId
+      jobs[job.jobId] = job
+      fs.writeFile(jobFile, JSON.stringify(jobs))
+    }
+  })
+})
+
+app.post('/download', (req, res) => {
+  if (req.body.api_key != api_key) {
+    if (req.body.key != api_key) {
+      return res.status(403).json({ message: 'Please provide a valid API key to initiate this request.' })
+    }
+  }
+  if (!req.body.jobId) {
+    return res.status(400).json({ message: 'Please provide an jobId to download.' })
+  }
+  var jobId = req.body.jobId
+  var job = jobs[jobId]
+  if (job.status == 2) {
+    res.status(200).json({ message: `Initiating download for complete job ${jobId}` })
+    downloadJob(job)
+  } else {
+    res.status(200).json({ message: `Updating status for incomplete job ${jobId}`})
+    checkJobStatus(job)
+  }
+})
+
+app.delete('/backups', (req, res) => {
+  if (req.body.api_key != api_key) {
+    if (req.body.key != api_key) {
+      return res.status(403).json({ message: 'Please provide a valid API key to initiate this request.' })
+    }
+  }
+  if (!req.body.archive) {
+    return res.status(400).json({ message: 'Please provide an archive to delete.' })
+  }
+  var archiveId = req.body.archive
+  res.status(200).json({ message: 'Delete job initiated. Please check back when the job is ready.' })
+
+  // delete from Glacier
+
+  // delete from local listing
+})
+
+app.put('/backups', (req, res) => {
+  if (req.body.api_key != api_key) {
+    if (req.body.key != api_key) {
+      return res.status(403).json({ message: 'Please provide a valid API key to initiate this request.' })
+    }
+  }
+  if (!req.body.path) {
+    return res.status(400).json({ message: 'Please provide a path to backup.' })
+  }
+  var job = {
+    jobId: uuid(),
+    type: 'backup',
+    vaultName: vaultName,
+    name: req.body.desc + '-backup-' + moment().format('MM-DD-YYYY'),
+    date: new Date(),
+    status: 0,
+    path: req.body.path,
+    archiverTotalSize: 0,
+    archiverSizeProgress: 0,
+    archiverTotalFiles: 0,
+    archiverFilesProgress: 0
+  }
+
+  archiveDir(job, (_job) => {
+    initiateUpload(_job)
+  })
+
+  jobs[job.jobId] = job
+  fs.writeFile(jobFile, JSON.stringify(jobs), () => {
+    res.status(200).json({ message: 'Job started, refresh the page to see its progress', job: job })
+  })
+})
+
+
 app.listen(port, () => {
   console.log('Server monitor listening on port 3000!')
 })
 
+function checkJobStatus(job) {
+  var params = {
+    jobId: job.jobId,
+    vaultName: vaultName
+  }
+  glacier.describeJob(params, (err, data) => {
+    if (err) console.log(err, err.stack)
+    else {
+      var status = data.StatusCode // InProgress, Succeeded, Failed
+      switch (status) {
+        case 'InProgress':
+          job.status = 1
+          setTimeout(() => {
+            checkJobStatus(job)
+          }, jobUpdateTime)
+          break;
+        case 'Succeeded':
+          job.status = 2
+          job.bytes = data.InventorySizeInBytes
+          downloadJob(job)
+          break;
+        case 'Failed':
+          job.status = 3
+          job.errorMessage = data.StatusMessage
+          break;
+        default:
+          console.log('Unknown StatusCode encountered:', status)
+          return
+        }
+      console.log(`job ${job.jobId} is ${status}`)
+      jobs[job.jobId] = job
+      fs.writeFile(jobFile, JSON.stringify(jobs))
+    }
+  })
+}
+
+function downloadJob(job) {
+  console.log(`downloading job with length ${job.bytes} bytes`)
+}
+
 function initiateUpload(job) {
+  console.log('initiating Glacier upload')
   job.status = 1
   var params = { vaultName: job.vaultName, archiveDescription: job.name }
   if (job.bytes < chunkSize) { // single part upload
+    console.log('selecting single part upload')
     var buffer = fs.readFileSync(job.filename)
     params.body = buffer
-    job.glacier.uploadArchive(params, (err, data) => {
+    glacier.uploadArchive(params, (err, data) => {
       completeUpload(job, err, data)
     })
     jobs[job.jobId] = job
-    fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs))
+    fs.writeFile(jobFile, JSON.stringify(jobs))
   } else {                     // multipart upload
+    console.log('selecting multipart upload')
     job.pieces = Math.trunc(job.bytes / chunkSize) + (job.bytes % chunkSize == 0 ? 0 : 1)
-    params.partSize = chunkSize
-    job.glacier.initiateMultipartUpload(params, (err, data) => {
-      job.uploadId = data.uploadId
-      job.currentChunkIndex = 0
-      uploadChunk(job, 0)
+    params.partSize = chunkSize.toString()
+    fs.readFile(job.filename, (err, data) => {
+      job.treeHash = glacier.computeChecksums(data).treeHash
+      glacier.initiateMultipartUpload(params, (err, data) => {
+        if (err) console.log('err: ', err)
+        console.log('multipart upload initiated with uploadId', data.uploadId)
+        job.uploadId = data.uploadId
+        job.currentChunkIndex = 0
+        uploadChunk(job, 0)
+      })
     })
   }
 }
 
 function uploadChunk(job, chunkIndex) {
+  console.log('uploading chunk ' + (chunkIndex + 1) + ' of ' + job.pieces)
   var offset = chunkIndex * chunkSize
   var length = chunkIndex == job.pieces - 1 ? job.bytes % chunkSize : chunkSize
-  var end = offset + length
-  var buffer = new Buffer(length)
-  fs.read(job.filename, buffer, chunkIndex * chunkSize, chunkSize, 0, () => {
-    var params = { vaultName: job.vaultName, uploadId: job.uploadId, body: buffer, range: `bytes ${offset}-${end}/*` }
-    job.glacier.uploadMultipartPart(params, (err, data) => {
-      if (chunkIndex == job.pieces - 1) { // complete upload
-        delete params.body
-        delete params.range
-        params.archiveSize = job.bytes
-        job.glacier.completeMultipartUpload(params, (err, data) => {
-          completeUpload(job, err, data)
-        })
-      } else {
-        job.currentChunkIndex = chunkIndex + 1
-        uploadChunk(job, chunkIndex + 1)  // continue upload with next chunk
-      }
+  var end = offset + length - 1
+  console.log(`chunk stats | start: ${offset} | length: ${length} | end: ${end}`)
+  var buffer = Buffer.alloc(length)
+  fs.open(job.filename, 'r', (err, fd) => {
+    if (err) console.log(err)
+    fs.read(fd, buffer, 0, length, offset, () => {
+      console.log('chunk read, preparing to upload')
+      var params = { vaultName: job.vaultName, uploadId: job.uploadId, body: buffer, range: `bytes ${offset}-${end}/*` }
+      glacier.uploadMultipartPart(params, (err, data) => {
+        if (err) console.log('err: ', err)
+        if (chunkIndex == job.pieces - 1) { // complete upload
+          console.log('chunk ' + (chunkIndex + 1) + ' uploaded successfully, completing upload')
+          fs.close(fd)          
+          delete params.body
+          delete params.range
+          params.archiveSize = job.bytes.toString()
+          params.checksum = job.treeHash
+          glacier.completeMultipartUpload(params, (err, data) => {
+            completeUpload(job, err, data)
+          })
+        } else {
+          console.log('chunk ' + (chunkIndex + 1) + ' uploaded successfully, beginning next chunk')
+          job.currentChunkIndex = chunkIndex + 1
+          uploadChunk(job, chunkIndex + 1)  // continue upload with next chunk
+        }
+      })
     })
   })
-  jobs[jobId] = job
-  fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs))
+  jobs[job.jobId] = job
+  fs.writeFile(jobFile, JSON.stringify(jobs))
 }
 
 function completeUpload(job, err, data) {
+  console.log('upload complete')
   if (err) console.log('Error uploading archive!', err)
     else {
       console.log('Archive ID', data.archiveId)
       var filename = job.filename
-      delete jobs[jobId]
+      delete jobs[job.jobId]
+      delete job.type
       delete job.status
       delete job.filename
       delete job.bytes
       delete job.pieces
       delete job.currentChunkIndex
       delete job.vaultName
-      delete job.glacier
+      delete glacier
       delete job.jobId
+      delete job.treeHash
       job.date = new Date()
       job.id = data.archiveId
       var backup = new Backup(job)
       backup.save(() => {
         console.log('Archive logged to DB')
-        fs.writeFile(path.join(__dirname, 'active_jobs.json'), JSON.stringify(jobs), () => {
+        fs.writeFile(jobFile, JSON.stringify(jobs), () => {
           console.log('Job listing updated')
         })
         fs.unlink(filename)
@@ -288,9 +448,9 @@ function completeUpload(job, err, data) {
     }
 }
 
-function archiveDir(dir, callback) {
+function archiveDir(job, callback) {
   // create a file to stream archive data to. 
-  var result = path.join(__dirname, 'archive-' + uuid() + '.tar.gz')
+  var result = path.join(__dirname, 'archive-' + job.jobId + '.tar.gz')
   var output = fs.createWriteStream(result)
   var archive = archiver('tar', {
     gzip: true,
@@ -300,7 +460,23 @@ function archiveDir(dir, callback) {
   output.on('close', () => {
     console.log(archive.pointer() + ' total bytes')
     console.log('archiver has been finalized and the output file descriptor has closed.')
-    callback(result, archive.pointer())
+    delete job.archiverTotalSize
+    delete job.archiverSizeProgress
+    delete job.archiverTotalFiles
+    delete job.archiverFilesProgress
+    job.filename = result
+    job.bytes = archive.pointer()
+    fs.writeFile(jobFile, JSON.stringify(jobs))
+    callback(job)
+  })
+
+  archive.on('progress', (prog) => {
+    job.archiverTotalSize = prog.fs.totalBytes
+    job.archiverSizeProgress = prog.fs.processedBytes
+    job.archiverTotalFiles = prog.entries.total
+    job.archiverFilesProgress = prog.entries.processed
+    fs.writeFile(jobFile, JSON.stringify(jobs))
+    console.log(`total: ${prog.entries.total} | processed: ${prog.entries.processed} | size: ${prog.fs.totalBytes}`)
   })
   
   archive.on('warning', (err) => {
@@ -316,7 +492,7 @@ function archiveDir(dir, callback) {
     throw err
   })
 
-  archive.directory(dir, false)
+  archive.directory(job.path, false)
   
   archive.pipe(output);  
   archive.finalize()
