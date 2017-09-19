@@ -1,4 +1,16 @@
 var jobs = {}
+
+$('.server-listing').on('click', function(e) {
+  e.preventDefault()
+  $.post({
+    url: 'backups/server',
+    data: 'key=#APIKEY#',
+    success: function(response) {
+      notify(response.message)
+    }
+  })
+})
+
 $('.backup-now').on('click', function(e) {
   e.preventDefault()
   var target = $(this).attr('data-dir')
@@ -34,7 +46,9 @@ $('.delete-now').on('click', function() {
 })
 
 $('.retrieve-now').on('click', function() {
-  if (confirm('Are you sure you would like to initiate retrieval of this archive? This process generally takes between 3 and 5 hours to prepare, in addition to however much time is required to download the archive.')) {
+  if (confirm('Are you sure you would like to initiate retrieval of this archive? ' +
+      'This process generally takes between 3 and 5 hours to prepare, in addition ' +
+      'to however much time is required to download the archive.')) {
     $.post({
       url: 'backups',
       data: 'archive=' + $(this).attr('data-archive') + '&key=#APIKEY#',

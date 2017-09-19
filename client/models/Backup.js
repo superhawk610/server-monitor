@@ -4,7 +4,9 @@ var Schema = mongoose.Schema
 var BackupSchema = new Schema({
   id: String,
   date: Date,
-  name: String
+  name: String,
+  bytes: Number,
+  localPath: String
 })
 
 module.exports = mongoose.model('Backup', BackupSchema)

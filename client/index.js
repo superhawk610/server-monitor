@@ -15,6 +15,7 @@ const moment            = require('moment')
 const uuid              = require('uuid/v4')
 const archiver          = require('archiver')
 const bodyParser        = require('body-parser')
+const csv               = require('csv-parse')
 
 const port              = 3000
 const limit             = 10
@@ -42,12 +43,12 @@ var jobs
 fs.readFile(jobFile, 'utf8', (err, data) => {
   if (err) jobs = {}
   else {
-    if (jobs == '') jobs = {}
+    if (data == '') jobs = {}
     else jobs = JSON.parse(data)
   }
 })
 
-/*
+/**
  * Available log components:
  * remote_addr
  * remote_user
@@ -59,6 +60,15 @@ fs.readFile(jobFile, 'utf8', (err, data) => {
  * method
  * path
  * protocol
+ */
+
+/**
+ * listing.csv Format:
+ * ArchiveId
+ * ArchiveDescription
+ * CreationDate
+ * Size
+ * SHA256TreeHash
  */
 
 if (app.get('env') === 'development') {
@@ -192,7 +202,51 @@ app.get('/ip/:ip', (req, res) => {
 
 app.get('/backups', (req, res) => {
   Backup.find({}, (err, backups) => {
-    res.render('backups', { route: 'backups', backups: backups, activeJobs: jobs })
+    fs.stat(path.join(__dirname, 'listing.csv'), (err, stats) => {
+      if (!err) {
+        fs.readFile(path.join(__dirname, 'listing.csv'), 'utf-8', (err, data) => {
+          csv(data, { columns: true }, (err, data) => {
+            if (err) console.log(err)
+            res.render('backups', { route: 'backups', backups: backups, listing: data, activeJobs: jobs })
+          })
+        })
+      } else res.render('backups', { route: 'backups', backups: backups, listing: [], activeJobs: jobs })
+    })
+  })
+})
+
+app.post('/backups/server', (req, res) => {
+  if (req.body.api_key != api_key) {
+    if (req.body.key != api_key) {
+      return res.status(403).json({ message: 'Please provide a valid API key to initiate this request.' })
+    }
+  }
+  res.status(200).json({ message: 'Retrieval job initiated. Please check back when the job is ready.' })
+
+  var params = {
+    vaultName: vaultName,
+    jobParameters: {
+      Description: `Retrieval job for archive listing`,
+      Type: 'inventory-retrieval',
+      Format: 'CSV'
+    }
+  }
+
+  var job = {
+    name: 'Archive Listing',
+    type: 'listing',
+    date: new Date(),
+    status: 0
+  }
+
+  glacier.initiateJob(params, (err, data) => {
+    if (err) console.log(err, err.stack)
+    console.log('Archive listing initiated:')
+    console.log('Location:', data.location)
+    console.log('Job ID:', data.jobId)
+    job.jobId = data.jobId
+    jobs[job.jobId] = job
+    fs.writeFile(jobFile, JSON.stringify(jobs))
   })
 })
 
@@ -267,11 +321,28 @@ app.delete('/backups', (req, res) => {
     return res.status(400).json({ message: 'Please provide an archive to delete.' })
   }
   var archiveId = req.body.archive
-  res.status(200).json({ message: 'Delete job initiated. Please check back when the job is ready.' })
 
   // delete from Glacier
-
-  // delete from local listing
+  var params = {
+    vaultName: vaultName,
+    archiveId: archiveId
+  }
+  glacier.deleteArchive(params, (err, data) => {
+    if (err) {
+      console.log(err)
+      res.status(500).json({ message: 'Could not delete archive from Glacier.' })
+    } else {
+      console.log(`successfully removed archive ${params.archiveId}`)
+      console.log(`from vault ${params.vaultName}`)
+      // delete from local listing
+      Backup.remove({ archiveId: archiveId }, (err) => {
+        if (err) {
+          console.log(err)
+          res.status(500).json({ message: `Archive deleted from Glacier but local listing persisted. Please manually remove DB entry with archiveId ${archiveId}` })
+        } else res.status(200).json({ message: 'Archive successfully deleted.' })
+      })
+    }
+  })
 })
 
 app.put('/backups', (req, res) => {
@@ -317,39 +388,113 @@ function checkJobStatus(job) {
     jobId: job.jobId,
     vaultName: vaultName
   }
-  glacier.describeJob(params, (err, data) => {
-    if (err) console.log(err, err.stack)
-    else {
-      var status = data.StatusCode // InProgress, Succeeded, Failed
-      switch (status) {
-        case 'InProgress':
-          job.status = 1
-          setTimeout(() => {
-            checkJobStatus(job)
-          }, jobUpdateTime)
-          break;
-        case 'Succeeded':
-          job.status = 2
-          job.bytes = data.InventorySizeInBytes
-          downloadJob(job)
-          break;
-        case 'Failed':
-          job.status = 3
-          job.errorMessage = data.StatusMessage
-          break;
-        default:
-          console.log('Unknown StatusCode encountered:', status)
-          return
-        }
-      console.log(`job ${job.jobId} is ${status}`)
-      jobs[job.jobId] = job
-      fs.writeFile(jobFile, JSON.stringify(jobs))
-    }
-  })
+  try {
+    glacier.describeJob(params, (err, data) => {
+      if (err) console.log(err, err.stack)
+      else {
+        var status = data.StatusCode // InProgress, Succeeded, Failed
+        switch (status) {
+          case 'InProgress':
+            job.status = 1
+            setTimeout(() => {
+              checkJobStatus(job)
+            }, jobUpdateTime)
+            break;
+          case 'Succeeded':
+            job.status = 2
+            job.bytes = data.InventorySizeInBytes
+            downloadJob(job)
+            break;
+          case 'Failed':
+            job.status = 3
+            job.errorMessage = data.StatusMessage
+            break;
+          default:
+            console.log('Unknown StatusCode encountered:', status)
+            return
+          }
+        console.log(`job ${job.jobId} is ${status}`)
+        jobs[job.jobId] = job
+        fs.writeFile(jobFile, JSON.stringify(jobs))
+      }
+    })
+  } catch (e) {
+    // job doesn't exist
+    delete jobs[job.jobId]
+    fs.writeFile(jobFile, JSON.stringify(jobs))
+  }
 }
 
 function downloadJob(job) {
   console.log(`downloading job with length ${job.bytes} bytes`)
+  job.localPath = path.join(__dirname, 'downloads', 'job-' + job.jobId + (job.type == 'listing' ? '.csv' : '.tar.gz'))
+  var params = {
+    vaultName: vaultName,
+    jobId: job.jobId
+  }
+  if (job.bytes < chunkSize) {
+    console.log('selecting single part download')
+    fs.open(job.localPath, 'w', (err, fd) => {
+      if (err) console.log(err)
+      glacier.getJobOutput(params, (err, data) => {
+        fs.writeFile(fd, data.body, err => {
+          if (err) console.log(err)
+          fs.close(fd, (err) => { if (err) console.log(err) })
+          completeDownload(job)
+        })
+      })
+    })
+  } else {
+    console.log('selecting multipart download')
+    job.currentChunkIndex = 0
+    downloadChunk(job, 0)
+  }
+}
+
+function downloadChunk(job, chunkIndex) {
+  console.log('downloading chunk ' + (chunkIndex + 1) + ' of ' + job.pieces)
+  var offset = chunkIndex * chunkSize
+  var length = chunkIndex == job.pieces - 1 ? job.bytes % chunkSize : chunkSize
+  var end = offset + length - 1
+  console.log(`chunk stats | start: ${offset} | length: ${length} | end: ${end}`)
+  var params = {
+    vaultName: vaultName,
+    jobId: job.jobId,
+    range: `bytes=${offset}-${end}`
+  }
+  fs.open(job.localPath, 'a', (err, fd) => {
+    if (err) console.log(err)
+    fs.write(fd, data.body, 0, (err) => {
+      if (err) console.log(err)
+      if (chunkIndex == job.pieces - 1) {
+        console.log('chunk ' + (chunkIndex + 1) + ' downloaded successfully, completing upload')
+        fs.close(fd)
+        completeDownload(job)
+      } else {
+        console.log('chunk ' + (chunkIndex + 1) + ' downloaded successfully, beginning next chunk')
+        job.currentChunkIndex = chunkIndex + 1
+        uploadChunk(job, chunkIndex + 1)  // continue upload with next chunk
+      }
+    })
+  })
+  jobs[job.jobId] = job
+  fs.writeFile(jobFile, JSON.stringify(jobs))
+}
+
+function completeDownload(job) {
+  switch (job.type) {
+    case 'retrieval':
+      Backup.findOneAndUpdate({ archiveId: job.archiveId }, { localPath: job.localPath }, { upsert: false }, (err, backup) => {
+        if (err) console.log(err)
+      })
+      break
+    case 'listing':
+      let listing = path.join(__dirname, 'listing.csv')
+      fs.unlink(listing, err => { if (err) console.log(err) })
+      fs.rename(job.localPath, listing)
+  }
+  delete jobs[job.jobId]
+  fs.writeFile(jobFile, JSON.stringify(jobs))
 }
 
 function initiateUpload(job) {
@@ -428,7 +573,6 @@ function completeUpload(job, err, data) {
       delete job.type
       delete job.status
       delete job.filename
-      delete job.bytes
       delete job.pieces
       delete job.currentChunkIndex
       delete job.vaultName
@@ -450,7 +594,7 @@ function completeUpload(job, err, data) {
 
 function archiveDir(job, callback) {
   // create a file to stream archive data to. 
-  var result = path.join(__dirname, 'archive-' + job.jobId + '.tar.gz')
+  var result = path.join(__dirname, 'uploads', 'archive-' + job.jobId + '.tar.gz')
   var output = fs.createWriteStream(result)
   var archive = archiver('tar', {
     gzip: true,

@@ -27,6 +27,7 @@
     "bluebird": "^3.5.0",
     "body-parser": "^1.17.2",
     "clf-parser": "0.0.2",
+    "csv-parse": "^1.2.2",
     "date-and-time": "^0.4.2",
     "express": "^4.15.3",
     "font-awesome": "^4.7.0",

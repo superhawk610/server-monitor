@@ -3,6 +3,18 @@ html
   head
     title Server Monitor - Backups
     include includes/head.pug
+    style.
+      ul {
+        list-style: none;
+        padding: 0;
+        margin-left: 0;
+      }
+      ul.striped > li {
+        padding: 10px;
+      }
+      ul.striped > li:nth-of-type(odd) {
+        background: #f4f4f4;
+      }
       
   body
     include includes/navigation.pug
@@ -12,6 +24,7 @@ html
         button.button.primary.float-right(data-component='dropdown', data-target='#action-dropdown')
           | Backup Now
           span.caret.down
+        button.button.secondary.float-right.server-listing(style='margin-right: 5px') Request Listing
         .dropdown.hide#action-dropdown
           a.close.show-sm(href='')
             ul
@@ -55,7 +68,7 @@ html
                   | Archive ID:&nbsp;
                   = job.uploadId
         if count
-          count = 0
+          - count = 0
         else
           span(style='color: #888') No active backup jobs.
         
@@ -63,7 +76,7 @@ html
       ul
         each j in Object.keys(activeJobs)
           - var job = activeJobs[j]
-          if job.type == 'retrieval'
+          if job.type == 'retrieval' || job.type == 'listing'
             - count++
             - style = ['success', 'primary', 'focus', 'danger', 'success'][job.status]
             - desc = ['Initiated', 'Preparing', 'Downloading', 'Failed', 'Downloaded'][job.status]
@@ -83,28 +96,51 @@ html
               span.break-dark
                 | Job ID:&nbsp;
                 = j
-              br
-              span.break-light
-                | Archive ID:&nbsp;
-                = job.archiveId
+              if job.type == 'retrieval'
+                br
+                span.break-light
+                  | Archive ID:&nbsp;
+                  = job.archiveId
         unless count
           span(style='color: #888') No active retrieval jobs.
       
       hr
 
       h5 Existing Backups
-      ul
-        each b in backups
-          li(style='margin-bottom: 20px')
-            | Backup Name:&nbsp;
-            = b.name
-            button.button.float-right.secondary.retrieve-now(data-archive=b.id) Retrieve
-            button.button.float-right.danger.delete-now(data-archive=b.id, style='margin-right: 5px') Delete
-            br
-            | Backup Date:&nbsp;
-            = moment(b.date).format('MMMM Do YYYY, h:mm:ss a')
-            br
-            span.break-light= 'Archive ID: ' + b.id
+      if backups.length
+        ul.striped
+          each b in backups
+            li(style='margin-bottom: 20px')
+              if b.localPath
+                span.label.success= 'Saved: ' + b.localPath
+                br
+              | Backup Name:&nbsp;
+              = b.name
+              button.button.float-right.secondary.retrieve-now(data-archive=b.id) Retrieve
+              button.button.float-right.danger.delete-now(data-archive=b.id, style='margin-right: 5px') Delete
+              br
+              | Backup Date:&nbsp;
+              = moment(b.date).format('MMMM Do YYYY, h:mm:ss a')
+              br
+              span.break-light= 'Archive ID: ' + b.id
+      else
+        h6.break-light(style='font-weight: 400') Database shows no backups.
+
+      h5 Server Listing
+      if listing.length
+        ul.striped
+          each l in listing
+            li(style='margin-bottom: 20px')
+              button.button.float-right.secondary.retrieve-now(data-archive=l.ArchiveId) Retrieve
+              button.button.float-right.danger.delete-now(data-archive=l.ArchiveId, style='margin-right: 5px') Delete
+              = `Archive Size: ${(l.Size / 1024).toFixed(3)} MB`
+              br
+              | Backup Date:&nbsp;
+              = moment(l.CreationDate).format('MMMM Do YYYY, h:mm:ss a')
+              br
+              span.break-light= 'Archive ID: ' + l.ArchiveId
+      else
+        h6.break-light(style='font-weight: 400') Please request and download a Server Listing.
 
     include includes/foot.pug
     script(src='js/main.js')

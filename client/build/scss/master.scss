@@ -46,7 +46,7 @@ table.clickable tr.collapse-box {
 /* Containers */
 
 .message {
-  position: absolute;
+  position: fixed;
   top: 0; left: 0; right: 0;
   box-shadow: 0 0 20px #000;
   margin: 0;
