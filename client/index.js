@@ -577,7 +577,6 @@ function completeUpload(job, err, data) {
       delete job.pieces
       delete job.currentChunkIndex
       delete job.vaultName
-      delete glacier
       delete job.jobId
       delete job.treeHash
       job.date = new Date()
