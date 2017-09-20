@@ -687,7 +687,6 @@ function archiveDir(job, callback) {
 }
 
 function parseLog(filename, callback, options) {
-  console.log(filename)
   var count = 0
   var shouldEnd = false
   var endingIP = 0

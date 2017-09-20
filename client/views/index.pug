@@ -14,7 +14,7 @@ html
           h4 Access Log (Apache)
         .col-6
           a.button.outline.float-right(href='/log') View Raw
-          a.button.secondary.outline.float-right#view-historical(style='margin-right: 5px', data-component='modal', data-target='#historical-modal') View Historical
+          a.button.secondary.outline.float-right#view-historical(style='margin-right: 5px', onclick="$.modalwindow({ target: '#historical-modal', position: 'top', maxHeight: true });") View Historical
       if logs.length
         table(class='clickable', id='access-table')
           tbody
@@ -76,13 +76,13 @@ html
       else
         h6.break-light Log was just rotated. Check back later, or View Historical above.
 
-      div(id='historical-modal', class='modal-box hide')
+      div#historical-modal.modal-box.hide
         .modal
           span(class='close', style='cursor: pointer')
           .modal-header Historical Logs
             span.break-light &nbsp;/var/www/log/old
           .modal-body
-            ul(style='list-style: none')
+            ul(style='list-style: none; padding: 0; margin: 0')
               li
                 a(href='access', style='text-decoration: none; color: #35beb1') Active Log (../access.log)
               each log in historicalLogs
