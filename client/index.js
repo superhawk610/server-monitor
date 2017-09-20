@@ -208,10 +208,10 @@ app.get('/backups', (req, res) => {
         fs.readFile(path.join(__dirname, 'listing.csv'), 'utf-8', (err, data) => {
           csv(data, { columns: true }, (err, data) => {
             if (err) console.log(err)
-            res.render('backups', { route: 'backups', backups: backups, listing: data, activeJobs: jobs })
+            res.render('backups', { route: 'backups', backups: backups, listing: data, listingExists: true, activeJobs: jobs })
           })
         })
-      } else res.render('backups', { route: 'backups', backups: backups, listing: [], activeJobs: jobs })
+      } else res.render('backups', { route: 'backups', backups: backups, listing: [], listingExists: false, activeJobs: jobs })
     })
   })
 })

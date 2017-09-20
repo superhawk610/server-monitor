@@ -139,7 +139,10 @@ html
               br
               span.break-light= 'Archive ID: ' + l.ArchiveId
       else
-        h6.break-light(style='font-weight: 400') Please request and download a Server Listing.
+        if listingExists
+          h6.break-light(style='font-weight: 400') Server lists no archives.
+        else
+          h6.break-light(style='font-weight: 400') Please request and download a Server Listing.
 
     include includes/foot.pug
     script(src='js/main.js')
