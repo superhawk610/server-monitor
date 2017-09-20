@@ -13,64 +13,81 @@ html
         .col-6
           h4 Access Log (Apache)
         .col-6
-          a(class='button outline float-right', href='/log') View Raw
-      table(class='clickable', id='access-table')
-        tbody
-          tr
-            th Method
-            th Request
-            th Client IP
-            th Access Date
-            th
-          - var prevIP = ''
-          - var expandStarted
-          - var count = -1
-          - var init = true
-          - for (var i=0; i < logs.length; i++)
-            - var log = logs[i]
-            if (log.remote_addr != prevIP)
-              - count++
-              - expandStarted = false
-              - prevIP = log.remote_addr
-              if (init)
-                - init = false
-              else
-                != '</ul></td></tr>'
-              tr(class='collapse-toggle')
-                td
-                  case log.http_method
-                    when 'GET'
-                      .gem-blue= log.http_method
-                    when 'POST'
-                      .gem-green= log.http_method
-                    when 'HEAD'
-                      .gem-red= log.http_method
-                    when '???'
-                      .gem-red= log.http_method
-                td!= log.request.substring(0, 100) + '<br>' + log.request.substring(101, 200) + (log.request.substring(200).length ? '...' : '')
-                td(data-ip=log.remote_addr, class='ip-hover')= log.remote_addr
-                  br
-                  span
-                td!= log.formatted_time
-                td
-                  span(class='caret down')
-                
+          a.button.outline.float-right(href='/log') View Raw
+          a.button.secondary.outline.float-right#view-historical(style='margin-right: 5px', data-component='modal', data-target='#historical-modal') View Historical
+      if logs.length
+        table(class='clickable', id='access-table')
+          tbody
+            tr
+              th Method
+              th Request
+              th Client IP
+              th Access Date
+              th
+            - var prevIP = ''
+            - var expandStarted
+            - var count = -1
+            - var init = true
+            - for (var i=0; i < logs.length; i++)
+              - var log = logs[i]
+              if (log.remote_addr && log.remote_addr != prevIP)
+                - count++
+                - expandStarted = false
+                - prevIP = log.remote_addr || ''
+                if (init)
+                  - init = false
+                else
+                  != '</ul></td></tr>'
+                tr(class='collapse-toggle')
+                  td
+                    case log.http_method
+                      when 'GET'
+                        .gem-blue= log.http_method
+                      when 'POST'
+                        .gem-green= log.http_method
+                      when 'HEAD'
+                        .gem-red= log.http_method
+                      when '???'
+                        .gem-red= log.http_method
+                  td!= log.request.substring(0, 100) + '<br>' + log.request.substring(101, 200) + (log.request.substring(200).length ? '...' : '')
+                  td(data-ip=log.remote_addr, class='ip-hover')= log.remote_addr
+                    br
+                    span
+                  td!= log.formatted_time
+                  td
+                    span(class='caret down')
                   
-            else
-              if (!expandStarted)
-                - expandStarted = true
-                != '<tr style="background: #eee; display: none" class="collapse-box"><td colspan=99><ul style="list-style: none">'
-              != '<li> [' + log.formatted_time.replace('<br>', ', ') + '] '
-              case log.http_method
-                when 'GET'
-                  != '<span class="gem-text-blue">' + log.http_method + '</span> '
-                when 'POST'
-                  != '<span class="gem-text-green">' + log.http_method + '</span> '
-                when 'HEAD'
-                  != '<span class="gem-text-red">' + log.http_method + '</span> '
-              != log.request.substring(log.http_method.length + 1, 100) + (log.request.substring(100).length ? '...' : '') + '</li>'
-      center
-        button(type='button', class='button outline', onclick='loadMore()', id='load-more') Load !{limit} More...
+                    
+              else
+                if (!expandStarted)
+                  - expandStarted = true
+                  != '<tr style="background: #eee; display: none" class="collapse-box"><td colspan=99><ul style="list-style: none">'
+                != '<li> [' + log.formatted_time.replace('<br>', ', ') + '] '
+                case log.http_method
+                  when 'GET'
+                    != '<span class="gem-text-blue">' + log.http_method + '</span> '
+                  when 'POST'
+                    != '<span class="gem-text-green">' + log.http_method + '</span> '
+                  when 'HEAD'
+                    != '<span class="gem-text-red">' + log.http_method + '</span> '
+                != log.request.substring(log.http_method.length + 1, 100) + (log.request.substring(100).length ? '...' : '') + '</li>'
+        center
+          button(type='button', class='button outline', onclick='loadMore(this)', id='load-more') Load !{limit} More...
+      else
+        h6.break-light Log was just rotated. Check back later, or View Historical above.
+
+      div(id='historical-modal', class='modal-box hide')
+        .modal
+          span(class='close', style='cursor: pointer')
+          .modal-header Historical Logs
+            span.break-light &nbsp;/var/www/log/old
+          .modal-body
+            ul(style='list-style: none')
+              li
+                a(href='access', style='text-decoration: none; color: #35beb1') Active Log (../access.log)
+              each log in historicalLogs
+                li
+                  a(href=`/historical/${log}`, style='text-decoration: none; color: #35beb1')= log
             
     include includes/foot.pug
     script(type='text/javascript', src='js/tooltipster.bundle.min.js')
@@ -79,23 +96,24 @@ html
       var offset = !{offset};
       var limit = !{limit};
     
-      $(function() {
-        loadHandlers();
-      });
+      // initialize
+      loadHandlers();
       
-      function loadMore() {
-        $.get({
-          url: '/access/' + offset,
-          success: function(response) {
-            if (response.html.length) {
-              offset = response.offset;
-              $('#access-table tbody').append(response.html);
-              loadHandlers();
-            } else {
-              $('#load-more').addClass('secondary disabled').text('No More To Load');
+      function loadMore(sender) {
+        if (!$(sender).hasClass('secondary')) {
+          $.get({
+            url: '!{refreshPath}' + offset,
+            success: function(response) {
+              if (response.html && response.html.length) {
+                offset = response.offset;
+                $('#access-table tbody').append(response.html);
+                loadHandlers();
+              } else {
+                $('#load-more').addClass('secondary disabled').text('No More To Load');
+              }
             }
-          }
-        })
+          })
+        }
       }
       
       function loadHandlers() {

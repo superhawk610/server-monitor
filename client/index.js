@@ -20,7 +20,7 @@ const csv               = require('csv-parse')
 
 const port              = 3000
 const limit             = 10
- const chunkSize         = Math.pow(2, 26) // ~ 64 MB
+const chunkSize         = Math.pow(2, 26) // ~ 64 MB
 const jobFile           = path.join(__dirname, 'active_jobs.json')
 const jobUpdateTime     = 5 * 60 * 1000
 
@@ -109,14 +109,44 @@ app.get('/', (req, res) => {
 })
 
 app.get('/access', (req, res) => {
-  parseLog((logs, offset) => {
-    res.render('index', { route: 'access', logs: logs, offset: offset, limit: limit })
+  fs.readdir('/var/www/log/old', (err, files) => {
+    if (err) console.log(err)
+    else {
+      parseLog('/var/www/log/access.log', (logs, offset) => {
+        res.render('index', {
+          route: 'access',
+          refreshPath: '/access/',
+          logs: logs,
+          historicalLogs: files.filter(x => x != '.' && x != '..'),
+          offset: offset,
+          limit: limit
+        })
+      })
+    }
+  })
+})
+
+app.get('/historical/:log', (req, res) => {
+  fs.readdir('/var/www/log/old/', (err, files) => {
+    if (err) console.log(err)
+    else {
+      parseLog(`/var/www/log/old/${req.params.log}`, (logs, offset) => {
+        res.render('index', {
+          route: 'access',
+          refreshPath: `/historical/${req.params.log}/`,
+          logs: logs,
+          historicalLogs: files.filter(x => x != '.' && x != '..'),
+          offset: offset,
+          limit: limit })
+      })
+    }
   })
 })
 
 app.get('/access/:offset', (req, res) => {
-  parseLog((logs, offset) => {
+  parseLog('/var/www/log/access.log', (logs, offset) => {
     res.render('log', { logs: logs, offset: offset }, (err, render) => {
+      if (err) console.log(err)
       res.json({
         offset: offset,
         html: render
@@ -125,6 +155,20 @@ app.get('/access/:offset', (req, res) => {
   }, {
     offset: parseInt(req.params.offset)
   })
+})
+
+app.get('/historical/:log/:offset', (req, res) => {
+  parseLog(`/var/www/log/old/${req.params.log.replace(/[\/\\]/g, '')}`, (logs, offset) => {
+    res.render('log', { logs: logs, offset: offset }, (err, render) => {
+      if (err) console.log(err)
+      res.json({
+        offset: offset,
+        html: render
+      })
+    })
+  }, {
+      offset: parseInt(req.params.offset)
+    })
 })
 
 app.get('/status', (req, res) => {
@@ -642,8 +686,8 @@ function archiveDir(job, callback) {
   archive.finalize()
 }
 
-function parseLog(callback, options) {
-  //var logsText = fs.readFileSync('/var/www/log/access.log', 'utf8').split('\n')
+function parseLog(filename, callback, options) {
+  console.log(filename)
   var count = 0
   var shouldEnd = false
   var endingIP = 0
@@ -651,7 +695,7 @@ function parseLog(callback, options) {
   if (options.offset === undefined) options.offset = 0
   if (options.limit === undefined) options.limit = limit
   var offset = options.offset
-  var lr = new LineByLineReader('/var/www/log/access.log', {
+  var lr = new LineByLineReader(filename, {
     encoding: 'utf8'
   })
   var logs = []
