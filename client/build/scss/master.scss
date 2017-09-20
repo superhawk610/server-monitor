@@ -18,9 +18,13 @@ table.clickable tr {
 
 table.clickable tr.collapse-box {
   cursor: default;
-  -moz-box-shadow:    inset 0 0 20px -10px #000000;
-  -webkit-box-shadow: inset 0 0 20px -10px #000000;
-  box-shadow:         inset 0 0 20px -10px #000000;
+  -moz-box-shadow:    inset 0 0 20px -10px #888;
+  -webkit-box-shadow: inset 0 0 20px -10px #888;
+  box-shadow:         inset 0 0 20px -10px #888;
+}
+
+table.clickable ul {
+  padding: 0; margin-bottom: 0;
 }
 
 .break-light {

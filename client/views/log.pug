@@ -3,7 +3,7 @@ if (logs.length)
   - var expandStarted
   - var count = offset
   - var init = true
-  - for (var i=0; i < logs.length; i++)
+  - for (var i=logs.length; i >= 0; i--)
     - var log = logs[i]
     if (log.remote_addr != prevIP)
       - count++

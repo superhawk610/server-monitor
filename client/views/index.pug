@@ -108,12 +108,13 @@ html
         });
         
         // register listeners for new collapsible elements
-        $('#access-table tbody tr.collapse-toggle').on('click', function() {
+        $('#access-table tbody tr.collapse-toggle').on('click', function(e) {
           if ($(this).next('.collapse-box').is(':visible')) {
-            $(this).next('.collapse-box').fadeOut()
+            $(this).next('.collapse-box').fadeOut();
           } else {
             $(this).next('.collapse-box').fadeIn();
           }
+          e.stopPropagation();
         });
         
         // add tooltips

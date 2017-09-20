@@ -28,7 +28,7 @@ html
         .dropdown.hide#action-dropdown
           a.close.show-sm(href='')
             ul
-              li
+              //li
                 a.backup-now(href='#', data-desc='dummy', data-dir='/dummy') Dummy
               li
                 a.backup-now(href='#', data-desc='main', data-dir='/var/www/html/main') Main Site
@@ -114,8 +114,7 @@ html
               if b.localPath
                 span.label.success= 'Saved: ' + b.localPath
                 br
-              | Backup Name:&nbsp;
-              = b.name
+              = `Backup Name: ${b.name} (${(b.bytes / 1024 / 1024).toFixed(3)} MB)`
               button.button.float-right.secondary.retrieve-now(data-archive=b.id) Retrieve
               button.button.float-right.danger.delete-now(data-archive=b.id, style='margin-right: 5px') Delete
               br
@@ -133,7 +132,7 @@ html
             li(style='margin-bottom: 20px')
               button.button.float-right.secondary.retrieve-now(data-archive=l.ArchiveId) Retrieve
               button.button.float-right.danger.delete-now(data-archive=l.ArchiveId, style='margin-right: 5px') Delete
-              = `Archive Size: ${(l.Size / 1024).toFixed(3)} MB`
+              = `Archive Size: ${(l.Size / 1024 / 1024).toFixed(3)} MB`
               br
               | Backup Date:&nbsp;
               = moment(l.CreationDate).format('MMMM Do YYYY, h:mm:ss a')
