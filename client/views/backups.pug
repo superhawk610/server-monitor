@@ -9,6 +9,9 @@ html
         padding: 0;
         margin-left: 0;
       }
+      #archive-jobs > li:not(:last-child) {
+        margin-bottom: 10px;
+      }
       ul.striped > li {
         padding: 10px;
       }
@@ -42,7 +45,7 @@ html
                 a.backup-now(href='#', data-desc='www', data-dir='/var/www') Webroot (/var/www)
 
       h5 Archive Jobs
-      ul
+      ul#archive-jobs
         - var style = ''
         - var desc = ''
         - var count = 0

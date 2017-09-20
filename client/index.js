@@ -210,7 +210,7 @@ app.get('/users', (req, res) => {
 })
 
 app.get('/log', (req, res) => {
-  parseLog((logs) => {
+  parseLog('/var/www/log/access.log', logs => {
     res.json(logs)
   }, {
     limit: 99999
