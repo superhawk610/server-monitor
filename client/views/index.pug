@@ -126,7 +126,7 @@ html
         });
         
         // register listeners for new collapsible elements
-        $('#access-table tbody tr.collapse-toggle').on('click', function(e) {
+        $('#access-table tbody').on('click', 'tr.collapse-toggle', function(e) {
           if ($(this).next('.collapse-box').is(':visible')) {
             $(this).next('.collapse-box').fadeOut();
           } else {

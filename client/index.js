@@ -8,6 +8,7 @@ const path              = require('path')
 const date              = require('date-and-time')
 const mongoose          = require('mongoose')
 mongoose.Promise        = require('bluebird')
+const mysql             = require('promise-mysql')
 const request           = require('request')
 const LineByLineReader  = require('line-by-line')
 const exec              = require('child_process').exec
@@ -20,7 +21,7 @@ const csv               = require('csv-parse')
 
 const port              = 3000
 const limit             = 10
-const chunkSize         = Math.pow(2, 26) // ~ 64 MB
+const chunkSize         = Math.pow(2, 25) // ~ 32 MB
 const jobFile           = path.join(__dirname, 'active_jobs.json')
 const jobUpdateTime     = 5 * 60 * 1000
 
@@ -46,6 +47,15 @@ fs.readFile(jobFile, 'utf8', (err, data) => {
   else {
     if (data == '') jobs = {}
     else jobs = JSON.parse(data)
+    if (Object.keys(jobs).length) {
+      for (var i = 0; i < Object.keys(jobs).length; i++) {
+        let job = jobs[Object.keys(jobs)[i]]
+        if (job.type == 'backup') {
+          job.currentChunkIndex = job.currentChunkIndex - 1
+          uploadChunk(job, job.currentChunkIndex)
+        }
+      }
+    }
   }
 })
 
@@ -191,22 +201,36 @@ app.get('/status/:ip/:port', (req, res) => {
 })
 
 app.get('/users', (req, res) => {
-  res.render('users', { route: 'users', users: [
-    { service: 'Employee Portal',
-      users: [
-        { name: 'username', last_login: '01/01/2017 12:00 AM', ip: '38.384.30.20' },
-        { name: 'username', last_login: '01/01/2017 12:00 AM', ip: '38.384.30.20' },
-        { name: 'username', last_login: '01/01/2017 12:00 AM', ip: '38.384.30.20' },
-      ]
-    },
-    { service: 'Customer Portal',
-      users: [
-        { name: 'username', last_login: '01/01/2017 12:00 AM', ip: '38.384.30.20' },
-        { name: 'username', last_login: '01/01/2017 12:00 AM', ip: '38.384.30.20' },
-        { name: 'username', last_login: '01/01/2017 12:00 AM', ip: '38.384.30.20' },
-      ]
-    }
-  ] })
+  mysql.createConnection({
+    host: cfg.host,
+    user: cfg.user,
+    password: cfg.pass,
+    database: 'cid_dev'
+  }).then(conn => {
+    conn.query(`SELECT * FROM users`).then(e_users => {
+      conn.query(`SELECT * FROM users_customer`).then(c_users => {
+        res.render('users', { route: 'users', users: [
+          { service: 'Employee Portal',
+            users: e_users.map(x => { return {
+              name: [ x.FirstName, x.LastName ].join(' '),
+              last_login: date.format(x.LastLoginTimestamp, 'ddd, M/D, h:mm:ss A'),
+              ip: x.LastLoginIP
+            } })
+          },
+          { service: 'Customer Portal',
+            users: c_users.map(x => {
+              return {
+                name: [ x.FirstName, x.LastName ].join(' '),
+                last_login: date.format(x.LastLoginTimestamp, 'ddd, M/D, h:mm:ss A'),
+                ip: 'Unknown'
+              }
+            })
+          }
+        ] })
+        conn.end()
+      })
+    })
+  })
 })
 
 app.get('/log', (req, res) => {
@@ -222,21 +246,32 @@ app.get('/ip/:ip', (req, res) => {
     if (ip === null) {
       request.get('https://ipapi.co/' + req.params.ip + '/json/', (error, response, body) => {
         if (error) console.log(error)
-        var lookup = JSON.parse(body)
-        var newIP = new IP()
-        if (lookup.error) {
-          newIP.ip = req.params.ip
-          newIP.invalid = true
-        } else {
-          Object.keys(lookup).map((x) => {
-            newIP[x] = lookup[x]
-          })
+        try { var lookup = JSON.parse(body) }
+        catch (e) {
+          if (e) {
+            console.log(e)
+            var newIP = new IP()
+            newIP.ip = req.params.ip
+            newIP.invalid = true
+            newIP.first_encountered = new Date()
+            res.json({ result: newIP, first_encountered: date.format(newIP.first_encountered, 'ddd, M/D, h:mm:ss A') })
+          } else {
+            var newIP = new IP()
+            if (lookup.error) {
+              newIP.ip = req.params.ip
+              newIP.invalid = true
+            } else {
+              Object.keys(lookup).map((x) => {
+                newIP[x] = lookup[x]
+              })
+            }
+            newIP.first_encountered = new Date()
+            newIP.save((err) => {
+              if (err) console.log(err)
+              res.json({ result: newIP, first_encountered: date.format(newIP.first_encountered, 'ddd, M/D, h:mm:ss A') })
+            })
+          }
         }
-        newIP.first_encountered = new Date()
-        newIP.save((err) => {
-          if (err) console.log(err)
-          res.json({ result: newIP, first_encountered: date.format(newIP.first_encountered, 'ddd, M/D, h:mm:ss A') })
-        })
       })
     } else {
       if (err) res.send(err)
@@ -559,15 +594,13 @@ function initiateUpload(job) {
     console.log('selecting multipart upload')
     job.pieces = Math.trunc(job.bytes / chunkSize) + (job.bytes % chunkSize == 0 ? 0 : 1)
     params.partSize = chunkSize.toString()
-    fs.readFile(job.filename, (err, data) => {
-      job.treeHash = glacier.computeChecksums(data).treeHash
-      glacier.initiateMultipartUpload(params, (err, data) => {
-        if (err) console.log('err: ', err)
-        console.log('multipart upload initiated with uploadId', data.uploadId)
-        job.uploadId = data.uploadId
-        job.currentChunkIndex = 0
-        uploadChunk(job, 0)
-      })
+    job.treeHash = glacier.computeChecksums(job.filename).treeHash
+    glacier.initiateMultipartUpload(params, (err, data) => {
+      if (err) console.log('err: ', err)
+      console.log('multipart upload initiated with uploadId', data.uploadId)
+      job.uploadId = data.uploadId
+      job.currentChunkIndex = 0
+      uploadChunk(job, 0)
     })
   }
 }
