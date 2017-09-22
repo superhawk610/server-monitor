@@ -21,7 +21,7 @@ const csv               = require('csv-parse')
 
 const port              = 3000
 const limit             = 10
-const chunkSize         = Math.pow(2, 25) // ~ 32 MB
+const chunkSize         = Math.pow(2, 23) // ~ 8 MB
 const jobFile           = path.join(__dirname, 'active_jobs.json')
 const jobUpdateTime     = 5 * 60 * 1000
 
@@ -697,7 +697,7 @@ function archiveDir(job, callback) {
     job.archiverTotalFiles = prog.entries.total
     job.archiverFilesProgress = prog.entries.processed
     fs.writeFile(jobFile, JSON.stringify(jobs))
-    console.log(`total: ${prog.entries.total} | processed: ${prog.entries.processed} | size: ${prog.fs.totalBytes}`)
+    //console.log(`total: ${prog.entries.total} | processed: ${prog.entries.processed} | size: ${prog.fs.totalBytes}`)
   })
   
   archive.on('warning', (err) => {
