@@ -13,11 +13,13 @@ const request           = require('request')
 const LineByLineReader  = require('line-by-line')
 const exec              = require('child_process').exec
 const AWS               = require('aws-sdk')
+const treehash          = require('treehash')
 const moment            = require('moment')
 const uuid              = require('uuid/v4')
 const archiver          = require('archiver')
 const bodyParser        = require('body-parser')
 const csv               = require('csv-parse')
+const fileSelect        = require('@superhawk610/file-select')
 
 const port              = 3000
 const limit             = 10
@@ -50,7 +52,7 @@ fs.readFile(jobFile, 'utf8', (err, data) => {
     if (Object.keys(jobs).length) {
       for (var i = 0; i < Object.keys(jobs).length; i++) {
         let job = jobs[Object.keys(jobs)[i]]
-        if (job.type == 'backup') {
+        if (job.type == 'backup' && job.bytes) {
           job.currentChunkIndex = job.currentChunkIndex - 1
           uploadChunk(job, job.currentChunkIndex)
         }
@@ -89,6 +91,9 @@ if (app.get('env') === 'development') {
 app.set('views', path.join(__dirname, 'views'))
 app.set('view engine', 'pug')
 
+app.use(fileSelect({
+  path: '/'
+}))
 app.use(sass({
   src: path.join(__dirname, 'build', 'scss'),
   dest: path.join(__dirname, 'public', 'css'),
@@ -327,6 +332,7 @@ app.post('/backups/server', (req, res) => {
     job.jobId = data.jobId
     jobs[job.jobId] = job
     fs.writeFile(jobFile, JSON.stringify(jobs))
+    checkJobStatus(job)
   })
 })
 
@@ -367,6 +373,7 @@ app.post('/backups', (req, res) => {
       job.jobId = data.jobId
       jobs[job.jobId] = job
       fs.writeFile(jobFile, JSON.stringify(jobs))
+      checkJobStatus(job)
     }
   })
 })
@@ -594,13 +601,21 @@ function initiateUpload(job) {
     console.log('selecting multipart upload')
     job.pieces = Math.trunc(job.bytes / chunkSize) + (job.bytes % chunkSize == 0 ? 0 : 1)
     params.partSize = chunkSize.toString()
-    job.treeHash = glacier.computeChecksums(job.filename).treeHash
-    glacier.initiateMultipartUpload(params, (err, data) => {
-      if (err) console.log('err: ', err)
-      console.log('multipart upload initiated with uploadId', data.uploadId)
-      job.uploadId = data.uploadId
-      job.currentChunkIndex = 0
-      uploadChunk(job, 0)
+
+    // AWS's implementation of treehash is limited by the max buffer size (~2GB)
+    // so we will use a module capable of calculating a tree hash from a stream
+    var hashStream = treehash.createTreeHashStream(),
+        fileStream = fs.createReadStream(job.filename)
+    fileStream.on('data', chunk => { hashStream.update(chunk) })
+    fileStream.on('end', () => {
+      job.treeHash = hashStream.digest()
+      glacier.initiateMultipartUpload(params, (err, data) => {
+        if (err) console.log('err: ', err)
+        console.log('multipart upload initiated with uploadId', data.uploadId)
+        job.uploadId = data.uploadId
+        job.currentChunkIndex = 0
+        uploadChunk(job, 0)
+      })
     })
   }
 }
@@ -618,21 +633,25 @@ function uploadChunk(job, chunkIndex) {
       console.log('chunk read, preparing to upload')
       var params = { vaultName: job.vaultName, uploadId: job.uploadId, body: buffer, range: `bytes ${offset}-${end}/*` }
       glacier.uploadMultipartPart(params, (err, data) => {
-        if (err) console.log('err: ', err)
-        if (chunkIndex == job.pieces - 1) { // complete upload
-          console.log('chunk ' + (chunkIndex + 1) + ' uploaded successfully, completing upload')
-          fs.close(fd)          
-          delete params.body
-          delete params.range
-          params.archiveSize = job.bytes.toString()
-          params.checksum = job.treeHash
-          glacier.completeMultipartUpload(params, (err, data) => {
-            completeUpload(job, err, data)
-          })
+        if (err) {
+          console.log('chunk ' + (chunkIndex + 1) + ' failed to upload (' + err.message + '), trying again')
+          uploadChunk(job, chunkIndex)
         } else {
-          console.log('chunk ' + (chunkIndex + 1) + ' uploaded successfully, beginning next chunk')
-          job.currentChunkIndex = chunkIndex + 1
-          uploadChunk(job, chunkIndex + 1)  // continue upload with next chunk
+          if (chunkIndex == job.pieces - 1) { // complete upload
+            console.log('chunk ' + (chunkIndex + 1) + ' uploaded successfully, completing upload')
+            fs.close(fd)          
+            delete params.body
+            delete params.range
+            params.archiveSize = job.bytes.toString()
+            params.checksum = job.treeHash
+            glacier.completeMultipartUpload(params, (err, data) => {
+              completeUpload(job, err, data)
+            })
+          } else {
+            console.log('chunk ' + (chunkIndex + 1) + ' uploaded successfully, beginning next chunk')
+            job.currentChunkIndex = chunkIndex + 1
+            uploadChunk(job, chunkIndex + 1)  // continue upload with next chunk
+          }
         }
       })
     })
@@ -705,15 +724,18 @@ function archiveDir(job, callback) {
         // log warning 
     } else {
         // throw error 
-        throw err
+        console.log(err)
     }
   })
   
   archive.on('error', (err) => {
-    throw err
+    console.log(err)
   })
 
-  archive.directory(job.path, false)
+  archive.glob('**/*', {
+    cwd: job.path,
+    ignore: ['*.pst', 'html/main/inventory/img/2j8fj/4h4h94/*']
+  })
   
   archive.pipe(output);  
   archive.finalize()

@@ -1,4 +1,5 @@
 node_modules
+.vscode
 client/site.config
 client/credentials
 client/public/css/master.css
