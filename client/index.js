@@ -127,11 +127,11 @@ app.get('/access', (req, res) => {
   fs.readdir('/var/www/log/old', (err, files) => {
     if (err) console.log(err)
     else {
-      parseLog('/var/www/log/access.log', (logs, offset) => {
+      parseLog('/var/www/log/access.log', (err, logs, offset) => {
         res.render('index', {
           route: 'access',
           refreshPath: '/access/',
-          logs: logs,
+          logs: err ? [] : logs,
           historicalLogs: files.filter(x => x != '.' && x != '..'),
           offset: offset,
           limit: limit
@@ -145,7 +145,7 @@ app.get('/historical/:log', (req, res) => {
   fs.readdir('/var/www/log/old/', (err, files) => {
     if (err) console.log(err)
     else {
-      parseLog(`/var/www/log/old/${req.params.log}`, (logs, offset) => {
+      parseLog(`/var/www/log/old/${req.params.log}`, (err, logs, offset) => {
         res.render('index', {
           route: 'access',
           refreshPath: `/historical/${req.params.log}/`,
@@ -159,7 +159,7 @@ app.get('/historical/:log', (req, res) => {
 })
 
 app.get('/access/:offset', (req, res) => {
-  parseLog('/var/www/log/access.log', (logs, offset) => {
+  parseLog('/var/www/log/access.log', (err, logs, offset) => {
     res.render('log', { logs: logs, offset: offset }, (err, render) => {
       if (err) console.log(err)
       res.json({
@@ -173,7 +173,7 @@ app.get('/access/:offset', (req, res) => {
 })
 
 app.get('/historical/:log/:offset', (req, res) => {
-  parseLog(`/var/www/log/old/${req.params.log.replace(/[\/\\]/g, '')}`, (logs, offset) => {
+  parseLog(`/var/www/log/old/${req.params.log.replace(/[\/\\]/g, '')}`, (err, logs, offset) => {
     res.render('log', { logs: logs, offset: offset }, (err, render) => {
       if (err) console.log(err)
       res.json({
@@ -239,11 +239,10 @@ app.get('/users', (req, res) => {
 })
 
 app.get('/log', (req, res) => {
-  parseLog('/var/www/log/access.log', logs => {
-    res.json(logs)
-  }, {
-    limit: 99999
-  })
+  parseLog('/var/www/log/access.log', (err, logs, offset) => {
+    if (err) res.json([])
+    else res.json(logs)
+  }, { limit: 99999 })
 })
 
 app.get('/ip/:ip', (req, res) => {
@@ -754,7 +753,8 @@ function parseLog(filename, callback, options) {
   })
   var logs = []
   lr.on('error', (err) => {
-    console.log(err)
+    callback(err, null, null)
+    return
   })
   lr.on('line', (line) => {
     //console.log('read line:', line)
@@ -782,6 +782,6 @@ function parseLog(filename, callback, options) {
     }
   })
   lr.on('end', () => {
-    if (callback) callback(logs, options.offset + count)
+    if (callback) callback(null, logs, options.offset + count)
   })
 }

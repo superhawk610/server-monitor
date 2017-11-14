@@ -47,6 +47,13 @@ table.clickable ul {
   background: $color-error;
 }
 
+.edit-button {
+  color: #ccc;
+  cursor: pointer;
+  font-size: .75em;
+  text-decoration: none;
+}
+
 /* Containers */
 
 .message {
@@ -70,8 +77,9 @@ nav a:focus {
 }
 
 nav a.active::before {
-  content: '\25cf';
-  color: $blue;
+  font-family: 'FontAwesome';
+  content: '\f101';
+  color: $green;
   margin-left: -20px;
   margin-right: 10px;
 }
@@ -228,7 +236,10 @@ nav a.active:focus {
   color: $green;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 991px) {
+  .navbar > ul {
+    display: none;
+  }
   .row {
     flex-direction: row;
   }

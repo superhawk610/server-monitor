@@ -22,18 +22,41 @@ html
       
       br(style='clear:both')
       h4(style='margin-top: 20px') Device Support
-      each dev in devices
+      each dev, i in devices
         unless dev.description.hide
           h5(style='margin-bottom: 5px')= dev.name
             each tag in dev.tags
               span.label(class=tag.category, style='margin-left: 5px')= tag.name
+            a.edit-button.float-right(href='#', data-component='modal', data-target='#edit-modal-' + i) Edit
           blockquote!= dev.description.tagline
           p!= dev.description.full
-          
+
     each dev, i in devices
-      div(id='device-modal-' + i, class='modal-box hide')
+      .modal-box.hide(id='edit-modal-' + i)
         .modal
-          span(class='close', style='cursor: pointer')
+          span.close(style='cursor: pointer')
+          .modal-header Edit Description
+          .modal-body(style='padding: 1.5em')
+            // Tagline, Short, Full
+            .form-item
+              label Tagline
+              input#tagline(type='text', value=dev.description.tagline)
+            .form-item
+              label Short Description
+              pre#short(contenteditable='true', spellcheck='false')
+                = dev.description.short
+                br
+            .form-item(style='margin-bottom: 0')
+              label Full Description
+              pre#full(contenteditable='true', spellcheck='false')
+                = dev.description.full
+                br
+          .modal-footer(style='padding: 0 1.5em 1.5em')
+            button(style='display: block; width: 100%') Save
+
+      .modal-box.hide(id='device-modal-' + i)
+        .modal
+          span.close(style='cursor: pointer')
           .modal-header= dev.name
           .modal-body
             dl
@@ -70,29 +93,84 @@ html
 
     include includes/foot.pug
     script(type='text/javascript').
-      
-      $(function() {  
-        $('.device .status').each(function() {
-          console.log($(this).parent().attr('data-target'));
-          var that = this;
-          $.ajax({
-            method: 'get',
-            url: '/status/' +
-                 $(this).attr('data-ip') + '/' +
-                 $(this).attr('data-port'),
-            success: function(response) {
-              console.log(response);
-              $(that).addClass(response).attr('title', response);
-            },
-            error: function(request, reason, error) {
-              if (reason == 'timeout') {
-                $(that).addClass('offline').attr('title', 'offline');
+
+      $('#edit-modal button').on('click', function() {
+
+      })
+
+      $('pre').on('keypress', function(e) {
+        var keyCode = e.keyCode || e.which
+        
+        // replace tab with 2 spaces
+        if (keyCode == 9) {
+          e.preventDefault()
+          pasteHtmlAtCaret('  ', false)
+        }
+      })
+
+      $('.device .status').each(function() {
+        var that = this
+        $.ajax({
+          method: 'get',
+          url: `/status/${$(this).attr('data-ip')}/${$(this).attr('data-port')}`,
+          success: function(response) {
+            $(that).addClass(response).attr('title', response)
+          },
+          error: function(request, reason, error) {
+            if (reason == 'timeout') $(that).addClass('offline').attr('title', 'offline')
+            else {
+              console.log(reason)
+              console.log(error)
+            }
+          },
+          timeout: 5000
+        })
+      })
+
+      // credit to Tim Down (https://stackoverflow.com/questions/6690752/insert-html-at-caret-in-a-contenteditable-div)
+      function pasteHtmlAtCaret(html, selectPastedContent) {
+        var sel, range;
+        if (window.getSelection) {
+          // IE9 and non-IE
+          sel = window.getSelection();
+          if (sel.getRangeAt && sel.rangeCount) {
+            range = sel.getRangeAt(0);
+            range.deleteContents();
+
+            // Range.createContextualFragment() would be useful here but is
+            // only relatively recently standardized and is not supported in
+            // some browsers (IE9, for one)
+            var el = document.createElement("div");
+            el.innerHTML = html;
+            var frag = document.createDocumentFragment(), node, lastNode;
+            while ( (node = el.firstChild) ) {
+              lastNode = frag.appendChild(node);
+            }
+            var firstNode = frag.firstChild;
+            range.insertNode(frag);
+
+            // Preserve the selection
+            if (lastNode) {
+              range = range.cloneRange();
+              range.setStartAfter(lastNode);
+              if (selectPastedContent) {
+                  range.setStartBefore(firstNode);
               } else {
-                console.log(reason);
-                console.log(error);
+                  range.collapse(true);
               }
-            },
-            timeout: 5000
-          });
-        });
-      });
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
+          }
+        } else if ( (sel = document.selection) && sel.type != "Control") {
+            // IE < 9
+            var originalRange = sel.createRange();
+            originalRange.collapse(true);
+            sel.createRange().pasteHTML(html);
+            if (selectPastedContent) {
+              range = sel.createRange();
+              range.setEndPoint("StartToStart", originalRange);
+              range.select();
+            }
+        }
+      }

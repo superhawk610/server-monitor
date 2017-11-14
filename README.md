@@ -11,21 +11,27 @@ Server Monitor
 
 ## Installation
 
-`git clone https://github.com/superhawk610/server-monitor.git`
+```shell
+git clone https://github.com/superhawk610/server-monitor.git
+```
 
 ## Configuration
 
 You will need to configure the app using the included `site.config-TEMPLATE`. Copy this to `site.config` and change the values to connect to your own MongoDB server. This monitor also connects to a MySQL database to check for users, and assumes the credentials will be the same. `api_key` can be any unique value, it is simply to deter brute force attacks against your API.
 
-    cp site.config-TEMPLATE site.config
-    vim site.config
+```shell
+cp site.config-TEMPLATE site.config
+vim site.config
+```
 
 You will also need to configure your server with your AWS credentials, if you have not already done so. To do so, copy the credentials-TEMPLATE to `~/.aws` and edit the values to reflect your AWS account.
 
-    # name this credentials and place this file in ~/.aws
-    [default]
-    aws_access_key_id = YOUR_ACCESS_KEY_ID
-    aws_secret_access_key = YOUR_SECRET_ACCESS_KEY
+```shell
+# name this credentials and place this file in ~/.aws
+[default]
+aws_access_key_id = YOUR_ACCESS_KEY_ID
+aws_secret_access_key = YOUR_SECRET_ACCESS_KEY
+```
 
 If you do not have an access key or secret access key, create a new identity under AWS IAM [here](https://console.aws.amazon.com/iam/home?region=us-east-2#/home).
 
