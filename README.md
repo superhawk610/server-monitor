@@ -3,11 +3,11 @@ Server Monitor
 
 :milky_way: A simple host/client application that allows a remote user to monitor various server statistics, such as uptime/downtime and access logs, as well as create and maintain Amazon Glacier backups.
 
-![Screenshot 1](http://superhawk610.myddns.me/share/server-monitor-1.png)
+![Screenshot 1](screenshots/server-monitor-1.png)
 
-![Screenshot 2](http://superhawk610.myddns.me/share/server-monitor-2.png)
+![Screenshot 2](screenshots/server-monitor-2.png)
 
-![Screenshot 3](http://superhawk610.myddns.me/share/server-monitor-3.png)
+![Screenshot 3](screenshots/server-monitor-3.png)
 
 ## Installation
 
